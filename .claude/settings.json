@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node scripts/cmd.js:*)",
+      "Bash(node scripts/sql.js:*)",
+      "Bash(npm run check)",
+      "Bash(npm run cmd:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch)",
+      "Bash(git branch --show-current)"
+    ],
+    "deny": [
+      "Bash(npm start)",
+      "Bash(node index.js)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf:*)"
+    ]
+  }
+}
