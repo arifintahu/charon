@@ -10,7 +10,5 @@ node_modules/
 .DS_Store
 npm-debug.log*
 
-ARCHITECTURE.md
-
 # CLAUDE
 .claude/setttings.local.json

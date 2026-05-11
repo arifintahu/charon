@@ -2,6 +2,26 @@ import { db } from './connection.js';
 import { now, json } from '../utils.js';
 import { numSetting, boolSetting, setting, activeStrategy } from './settings.js';
 
+const ENV_SNAPSHOT_KEYS = [
+  'TRENDING_ENABLED', 'TRENDING_SOURCE', 'TRENDING_INTERVAL', 'TRENDING_LIMIT',
+  'TRENDING_MIN_VOLUME_USD', 'TRENDING_MIN_SWAPS', 'TRENDING_MAX_RUG_RATIO',
+  'TRENDING_MAX_BUNDLER_RATE', 'TRENDING_ALLOW_DEGEN',
+  'SIGNAL_POLL_MS', 'GRADUATED_POLL_MS', 'GRADUATED_LOOKBACK_MS',
+  'TRENDING_POLL_MS', 'TRENDING_LOOKBACK_MS', 'POSITION_CHECK_MS',
+  'GMGN_ENABLED', 'GMGN_REQUEST_DELAY_MS', 'GMGN_MAX_RETRIES', 'GMGN_CACHE_TTL_MS',
+  'ENABLE_LLM', 'LLM_MODEL', 'LLM_CANDIDATE_PICK_COUNT', 'LLM_CANDIDATE_MAX_AGE_MS',
+  'TRADING_MODE', 'MAX_OPEN_POSITIONS', 'LIVE_MIN_SOL_RESERVE',
+  'MIN_FEE_CLAIM_SOL', 'JUPITER_SLIPPAGE_BPS',
+];
+
+function captureEnvSnapshot() {
+  const out = {};
+  for (const k of ENV_SNAPSHOT_KEYS) {
+    if (process.env[k] !== undefined) out[k] = process.env[k];
+  }
+  return out;
+}
+
 export function openPositions() {
   return db.prepare('SELECT * FROM dry_run_positions WHERE status = ? ORDER BY opened_at_ms DESC').all('open');
 }
@@ -65,7 +85,7 @@ export function createDryRunPosition(candidateId, candidate, decision, reason = 
       trailingPercent,
       decision.id || null,
       strat.id,
-      json({ candidate, decision, reason, strategy: strat.id }),
+      json({ candidate, decision, reason, strategy: strat, env: captureEnvSnapshot() }),
     );
     const positionId = Number(result.lastInsertRowid);
     db.prepare(`
@@ -122,7 +142,7 @@ export function createLivePosition(candidateId, candidate, decision, swap, reaso
       swap.signature,
       swap.outputAmount || null,
       strat.id,
-      json({ candidate, decision, reason, swap, strategy: strat.id }),
+      json({ candidate, decision, reason, swap, strategy: strat, env: captureEnvSnapshot() }),
     );
     const positionId = Number(result.lastInsertRowid);
     db.prepare(`
