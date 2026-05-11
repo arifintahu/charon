@@ -1,0 +1,66 @@
+flowchart TD
+  Start[Start: npm start] --> App[startCharon]
+  App --> Init[init: validateConfig + initDb + initLiveExecution + setupTelegram]
+
+  Init --> Mode{SIGNAL_SERVER_URL set?}
+
+  Mode -- Yes --> ServerPoll[poll signal server]
+  ServerPoll --> StratGates[strategy gates]
+  StratGates -->|pass| Trigger[trigger candidate]
+  StratGates -->|dip_buy wait_for_dip| PriceAlert[store/monitor dip alerts]
+  PriceAlert --> Trigger
+
+  Mode -- No --> FeeWS[feeClaim websocket logs]
+  Mode -- No --> GradPoll[poll graduated]
+  Mode -- No --> TrendPoll[poll trending]
+  FeeWS --> Trigger
+  GradPoll --> Trigger
+  TrendPoll --> Trigger
+
+  Trigger --> Build[build + enrich candidate]
+  Build --> Filters{filters pass?}
+  Filters -- No --> Drop[drop]
+  Filters -- Yes --> Persist[save candidate to SQLite]
+
+  Persist --> Decide{use_llm?}
+  Decide -- No --> AutoBuy[auto BUY]
+  Decide -- Yes --> Batch[load batch]
+  Batch --> LLM[LLM pick <= 1 BUY]
+  LLM --> Decision[store decision]
+
+  AutoBuy --> Approved
+  Decision --> Approved{BUY approved?}
+  Approved -- No --> NoEntry[no entry]
+  Approved -- Yes --> FreshCheck[fresh execution check]
+
+  FreshCheck -- Fail --> RejectFresh[reject entry]
+  FreshCheck -- Pass --> ExecMode{TRADING_MODE}
+
+  ExecMode -- dry_run --> Dry[create dry-run position]
+  ExecMode -- confirm --> Intent[create trade intent]
+  Intent -- approve --> LiveBuy[live buy]
+  Intent -- reject --> RejectIntent[reject intent]
+  ExecMode -- live --> LiveBuy
+
+  LiveBuy --> Jupiter[jupiter order->sign->execute]
+  Jupiter --> LivePos[create live position]
+
+  Dry --> OpenPos((open position))
+  LivePos --> OpenPos
+
+  App --> MonitorLoop[every POSITION_CHECK_MS: monitorPositions]
+  MonitorLoop --> RefreshPos[refresh position]
+  RefreshPos --> ExitRules{exit rules hit?}
+  ExitRules -- No --> Keep[keep open]
+  ExitRules -- Yes --> ExitAction{live?}
+  ExitAction -- No --> CloseSim[close dry-run]
+  ExitAction -- Yes --> LiveSell[live sell via Jupiter]
+  LiveSell --> CloseLive[close live]
+
+  NoEntry --> TG[telegram]
+  Dry --> TG
+  LivePos --> TG
+  CloseSim --> TG
+  CloseLive --> TG
+  RejectFresh --> TG
+
