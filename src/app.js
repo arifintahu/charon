@@ -7,12 +7,16 @@ import { monitorPositions } from './execution/positions.js';
 import { processCandidateFromSignals, maybeProcessDegenCandidate } from './pipeline/orchestrator.js';
 import { sendTelegram } from './telegram/send.js';
 import { makeFailureTracker } from './utils.js';
+import { startPostgresSync } from './sync/postgresSink.js';
+import { machineId } from './db/machineId.js';
 
 setDefaultResultOrder('ipv4first');
 validateConfig();
 
 export async function startCharon() {
   initDb();
+  console.log(`[bot] machine_id ${machineId()}`);
+  startPostgresSync();
   initLiveExecution();
   setupTelegram();
 

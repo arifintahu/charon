@@ -1,6 +1,7 @@
 import { db } from './connection.js';
 import { now, safeJson, json } from '../utils.js';
 import { numSetting } from './settings.js';
+import { enqueueSync } from './outbox.js';
 
 export function candidateSignalKey(candidate, signature = null) {
   if (signature) return `${signature}:${candidate.token.mint}`;
@@ -11,7 +12,7 @@ export function candidateSignalKey(candidate, signature = null) {
 
 export function upsertCandidate(candidate, signature) {
   const signalKey = candidateSignalKey(candidate, signature);
-  return db.transaction(() => {
+  const id = db.transaction(() => {
     const existing = db.prepare('SELECT id FROM candidates WHERE signal_key = ?').get(signalKey);
     if (existing) {
       db.prepare(`
@@ -43,10 +44,13 @@ export function upsertCandidate(candidate, signature) {
     );
     return Number(result.lastInsertRowid);
   })();
+  enqueueSync('candidates', id);
+  return id;
 }
 
 export function updateCandidateStatus(candidateId, status) {
   db.prepare('UPDATE candidates SET status = ?, updated_at_ms = ? WHERE id = ?').run(status, now(), candidateId);
+  enqueueSync('candidates', candidateId);
 }
 
 export function updateCandidateSnapshot(candidateId, candidate, status = null) {
@@ -55,6 +59,7 @@ export function updateCandidateSnapshot(candidateId, candidate, status = null) {
     SET status = COALESCE(?, status), updated_at_ms = ?, candidate_json = ?, filter_result_json = ?
     WHERE id = ?
   `).run(status, now(), json(candidate), json(candidate.filters || {}), candidateId);
+  enqueueSync('candidates', candidateId);
 }
 
 export function candidateById(id) {

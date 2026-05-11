@@ -1,12 +1,14 @@
 import { now, json } from '../utils.js';
 import { numSetting, boolSetting, strategyById } from '../db/settings.js';
 import { db } from '../db/connection.js';
+import { enqueueSync } from '../db/outbox.js';
 import { firstPositiveNumber, marketCapFromGmgn, tokenPriceFromGmgn } from '../utils.js';
 import { fetchGmgnTokenInfo } from '../enrichment/gmgn.js';
 import { fetchJupiterAsset, fetchJupiterHolders, fetchJupiterChartContext, fetchJupiterWalletPnl } from '../enrichment/jupiter.js';
 import { liveWalletPubkey } from '../liveExecutor.js';
 import { fetchSavedWalletExposure } from '../enrichment/wallets.js';
 import { filterCandidate } from '../pipeline/candidateBuilder.js';
+import { evaluateExitTick } from './exitSimulator.js';
 import { openPositions } from '../db/positions.js';
 import { updateCandidateSnapshot } from '../db/candidates.js';
 import { trending } from '../signals/trending.js';
@@ -114,31 +116,41 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
   if (!Number.isFinite(Number(mcap)) || !Number.isFinite(Number(position.entry_mcap)) || Number(position.entry_mcap) <= 0) {
     return null;
   }
-  const highWaterMcap = Math.max(Number(position.high_water_mcap || 0), Number(mcap));
-  const highWaterPrice = Math.max(Number(position.high_water_price || 0), Number(price || 0));
-  let pnlPercent = (Number(mcap) / Number(position.entry_mcap) - 1) * 100;
-  let pnlSol = Number(position.size_sol) * pnlPercent / 100;
-  if (jupiterPnl && Number.isFinite(Number(jupiterPnl.totalPnlPercentageNative))) {
-    pnlPercent = Number(jupiterPnl.totalPnlPercentageNative);
-    pnlSol = Number.isFinite(Number(jupiterPnl.totalPnlNative)) ? Number(jupiterPnl.totalPnlNative) : pnlSol;
-  }
-  const tpHit = pnlPercent >= Number(position.tp_percent);
-  const slHit = pnlPercent <= Number(position.sl_percent);
-  const trailingArmed = position.trailing_armed || (position.trailing_enabled && tpHit);
-  const trailDrop = highWaterMcap > 0 ? (Number(mcap) / highWaterMcap - 1) * 100 : 0;
-  const trailingHit = trailingArmed && position.trailing_enabled && trailDrop <= -Math.abs(Number(position.trailing_percent));
-  let exitReason = null;
+  const strat = strategyById(position.strategy_id);
+  const tick = evaluateExitTick({
+    entryMcap: position.entry_mcap,
+    entryPrice: position.entry_price,
+    sizeSol: position.size_sol,
+    highWaterMcap: position.high_water_mcap,
+    highWaterPrice: position.high_water_price,
+    trailingArmed: Boolean(position.trailing_armed),
+    partialTpDone: Boolean(position.partial_tp_done),
+    currentPrice: price,
+    currentMcap: mcap,
+    tpPercent: position.tp_percent,
+    slPercent: position.sl_percent,
+    trailingEnabled: Boolean(position.trailing_enabled),
+    trailingPercent: position.trailing_percent,
+    maxHoldMs: strat?.max_hold_ms || 0,
+    openedAtMs: position.opened_at_ms,
+    nowMs: now(),
+    partialTp: Boolean(strat?.partial_tp),
+    partialTpAtPercent: strat?.partial_tp_at_percent || 0,
+    partialTpSellPercent: strat?.partial_tp_sell_percent || 0,
+    pnlOverride: jupiterPnl && Number.isFinite(Number(jupiterPnl.totalPnlPercentageNative))
+      ? {
+        pnlPercent: Number(jupiterPnl.totalPnlPercentageNative),
+        pnlSol: Number.isFinite(Number(jupiterPnl.totalPnlNative)) ? Number(jupiterPnl.totalPnlNative) : null,
+      }
+      : null,
+  });
+  const { pnlPercent, pnlSol, highWaterMcap, highWaterPrice, trailingArmed } = tick;
+  let exitReason = tick.exitReason;
   let closed = false;
 
-  // Max hold time check
-  const strat = strategyById(position.strategy_id);
-  if (strat?.max_hold_ms > 0 && (now() - position.opened_at_ms) >= strat.max_hold_ms) {
-    exitReason = 'MAX_HOLD';
-  }
-
-  // Partial TP check
-  if (!exitReason && strat?.partial_tp && !position.partial_tp_done && pnlPercent >= strat.partial_tp_at_percent) {
+  if (tick.partialTpTriggeredThisTick) {
     db.prepare('UPDATE dry_run_positions SET partial_tp_done = 1 WHERE id = ?').run(position.id);
+    enqueueSync('dry_run_positions', position.id);
     console.log(`[position] ${position.id} partial TP at ${pnlPercent.toFixed(1)}% (${strat.partial_tp_sell_percent}% sell)`);
     if (position.execution_mode === 'live' && position.token_amount_raw) {
       try {
@@ -147,25 +159,20 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
           const sell = await executeLiveSell({ ...position, token_amount_raw: String(sellAmount) }, 'PARTIAL_TP');
           const remaining = Number(position.token_amount_raw) - sellAmount;
           db.prepare('UPDATE dry_run_positions SET token_amount_raw = ? WHERE id = ?').run(String(remaining), position.id);
-          db.prepare(`
+          enqueueSync('dry_run_positions', position.id);
+          const tradeRes = db.prepare(`
             INSERT INTO dry_run_trades (position_id, mint, side, at_ms, price, mcap, size_sol, token_amount_est, reason, payload_json)
             VALUES (?, ?, 'sell', ?, ?, ?, ?, ?, 'PARTIAL_TP', ?)
           `).run(position.id, position.mint, now(), price, mcap,
             position.size_sol * (strat.partial_tp_sell_percent / 100), sellAmount,
             json({ pnlPercent, sell, partialSellPercent: strat.partial_tp_sell_percent, remaining }));
+          enqueueSync('dry_run_trades', Number(tradeRes.lastInsertRowid));
           console.log(`[position] ${position.id} partial TP sold ${sellAmount} tokens, ${remaining} remaining`);
         }
       } catch (err) {
         console.log(`[position] ${position.id} partial sell failed: ${err.message}`);
       }
     }
-  }
-
-  // Standard exit checks
-  if (!exitReason) {
-    if (slHit) exitReason = 'SL';
-    else if (tpHit && !position.trailing_enabled) exitReason = 'TP';
-    else if (trailingHit) exitReason = 'TRAILING_TP';
   }
 
   // Live exits will override these with realized SOL values
@@ -177,6 +184,7 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
     SET high_water_mcap = ?, high_water_price = ?, trailing_armed = ?
     WHERE id = ?
   `).run(highWaterMcap, highWaterPrice, trailingArmed ? 1 : 0, position.id);
+  enqueueSync('dry_run_positions', position.id);
 
   if (exitReason && autoExit && position.execution_mode === 'live') {
     if (sellInProgress.has(position.id)) return { ...position, exitReason: null };
@@ -199,10 +207,12 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
           pnl_percent = ?, pnl_sol = ?, exit_signature = ?
       WHERE id = ?
     `).run(now(), price, mcap, exitReason, finalPnlPercent, finalPnlSol, sell.signature, position.id);
-    db.prepare(`
+    enqueueSync('dry_run_positions', position.id);
+    const tradeRes = db.prepare(`
       INSERT INTO dry_run_trades (position_id, mint, side, at_ms, price, mcap, size_sol, token_amount_est, reason, payload_json)
       VALUES (?, ?, 'sell', ?, ?, ?, ?, ?, ?, ?)
     `).run(position.id, position.mint, now(), price, mcap, position.size_sol, position.token_amount_est, exitReason, json({ pnlPercent: finalPnlPercent, pnlSol: finalPnlSol, receivedSol: receivedSol ?? null, sell }));
+    enqueueSync('dry_run_trades', Number(tradeRes.lastInsertRowid));
     closed = true;
   } else if (exitReason && autoExit) {
     db.prepare(`
@@ -210,10 +220,12 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
       SET status = 'closed', closed_at_ms = ?, exit_price = ?, exit_mcap = ?, exit_reason = ?, pnl_percent = ?, pnl_sol = ?
       WHERE id = ?
     `).run(now(), price, mcap, exitReason, pnlPercent, pnlSol, position.id);
-    db.prepare(`
+    enqueueSync('dry_run_positions', position.id);
+    const tradeRes = db.prepare(`
       INSERT INTO dry_run_trades (position_id, mint, side, at_ms, price, mcap, size_sol, token_amount_est, reason, payload_json)
       VALUES (?, ?, 'sell', ?, ?, ?, ?, ?, ?, ?)
     `).run(position.id, position.mint, now(), price, mcap, position.size_sol, position.token_amount_est, exitReason, json({ pnlPercent, pnlSol }));
+    enqueueSync('dry_run_trades', Number(tradeRes.lastInsertRowid));
     closed = true;
   }
   return {

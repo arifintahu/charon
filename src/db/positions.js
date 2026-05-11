@@ -1,6 +1,7 @@
 import { db } from './connection.js';
 import { now, json } from '../utils.js';
 import { numSetting, boolSetting, setting, activeStrategy } from './settings.js';
+import { enqueueSync } from './outbox.js';
 
 const ENV_SNAPSHOT_KEYS = [
   'TRENDING_ENABLED', 'TRENDING_SOURCE', 'TRENDING_INTERVAL', 'TRENDING_LIMIT',
@@ -56,11 +57,11 @@ export function createDryRunPosition(candidateId, candidate, decision, reason = 
   const trailingEnabled = (strat.trailing_enabled ?? boolSetting('default_trailing_enabled', true)) ? 1 : 0;
   const trailingPercent = strat.trailing_percent ?? numSetting('default_trailing_percent', 20);
 
-  return db.transaction(() => {
+  const out = db.transaction(() => {
     const existing = db.prepare(`
       SELECT id FROM dry_run_positions WHERE mint = ? AND status = 'open' LIMIT 1
     `).get(candidate.token.mint);
-    if (existing) return existing.id;
+    if (existing) return { positionId: existing.id, tradeId: null };
 
     const result = db.prepare(`
       INSERT INTO dry_run_positions (
@@ -88,7 +89,7 @@ export function createDryRunPosition(candidateId, candidate, decision, reason = 
       json({ candidate, decision, reason, strategy: strat, env: captureEnvSnapshot() }),
     );
     const positionId = Number(result.lastInsertRowid);
-    db.prepare(`
+    const tradeRes = db.prepare(`
       INSERT INTO dry_run_trades (position_id, mint, side, at_ms, price, mcap, size_sol, token_amount_est, reason, payload_json)
       VALUES (?, ?, 'buy', ?, ?, ?, ?, ?, ?, ?)
     `).run(positionId, candidate.token.mint, now(), entryPrice, entryMcap, sizeSol, null, reason, json({ candidateId, decision }));
@@ -96,8 +97,11 @@ export function createDryRunPosition(candidateId, candidate, decision, reason = 
       INSERT INTO tp_sl_rules (position_id, tp_percent, sl_percent, trailing_enabled, trailing_percent, updated_at_ms)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(positionId, tp, sl, trailingEnabled, trailingPercent, now());
-    return positionId;
+    return { positionId, tradeId: Number(tradeRes.lastInsertRowid) };
   })();
+  enqueueSync('dry_run_positions', out.positionId);
+  if (out.tradeId) enqueueSync('dry_run_trades', out.tradeId);
+  return out.positionId;
 }
 
 export function createLivePosition(candidateId, candidate, decision, swap, reason = 'live_buy') {
@@ -110,11 +114,11 @@ export function createLivePosition(candidateId, candidate, decision, swap, reaso
   const trailingEnabled = (strat.trailing_enabled ?? boolSetting('default_trailing_enabled', true)) ? 1 : 0;
   const trailingPercent = strat.trailing_percent ?? numSetting('default_trailing_percent', 20);
 
-  return db.transaction(() => {
+  const out = db.transaction(() => {
     const existing = db.prepare(`
       SELECT id FROM dry_run_positions WHERE mint = ? AND status = 'open' LIMIT 1
     `).get(candidate.token.mint);
-    if (existing) return existing.id;
+    if (existing) return { positionId: existing.id, tradeId: null };
 
     const result = db.prepare(`
       INSERT INTO dry_run_positions (
@@ -145,7 +149,7 @@ export function createLivePosition(candidateId, candidate, decision, swap, reaso
       json({ candidate, decision, reason, swap, strategy: strat, env: captureEnvSnapshot() }),
     );
     const positionId = Number(result.lastInsertRowid);
-    db.prepare(`
+    const tradeRes = db.prepare(`
       INSERT INTO dry_run_trades (position_id, mint, side, at_ms, price, mcap, size_sol, token_amount_est, reason, payload_json)
       VALUES (?, ?, 'buy', ?, ?, ?, ?, ?, ?, ?)
     `).run(positionId, candidate.token.mint, now(), entryPrice, entryMcap, sizeSol, null, reason, json({ candidateId, decision, swap }));
@@ -153,6 +157,9 @@ export function createLivePosition(candidateId, candidate, decision, swap, reaso
       INSERT INTO tp_sl_rules (position_id, tp_percent, sl_percent, trailing_enabled, trailing_percent, updated_at_ms)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(positionId, tp, sl, trailingEnabled, trailingPercent, now());
-    return positionId;
+    return { positionId, tradeId: Number(tradeRes.lastInsertRowid) };
   })();
+  enqueueSync('dry_run_positions', out.positionId);
+  if (out.tradeId) enqueueSync('dry_run_trades', out.tradeId);
+  return out.positionId;
 }

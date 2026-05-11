@@ -5,8 +5,16 @@
   "private": true,
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js && node --check src/app.js && node --check src/config.js && node --check src/liveExecutor.js && node --check scripts/cmd.js && node --check scripts/sql.js",
-    "cmd": "node scripts/cmd.js"
+    "check": "node --check index.js && node --check src/app.js && node --check src/config.js && node --check src/liveExecutor.js && node --check scripts/cmd.js && node --check scripts/sql.js && node --check scripts/pg-migrate.js && node --check scripts/pg-backfill.js && node --check scripts/backtest.js && node --check scripts/backtest-fetch.js",
+    "cmd": "node scripts/cmd.js",
+    "pg:up": "docker compose up -d postgres",
+    "pg:down": "docker compose down",
+    "pg:logs": "docker compose logs -f postgres",
+    "pg:psql": "docker compose exec postgres psql -U charon -d charon",
+    "pg:migrate": "node scripts/pg-migrate.js",
+    "pg:backfill": "node scripts/pg-backfill.js",
+    "backtest:fetch": "node scripts/backtest-fetch.js",
+    "backtest": "node scripts/backtest.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",
@@ -15,6 +23,7 @@
     "bs58": "^6.0.0",
     "dotenv": "^16.4.7",
     "node-telegram-bot-api": "^0.66.0",
+    "pg": "^8.20.0",
     "ws": "^8.18.0"
   }
 }

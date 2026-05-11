@@ -3,6 +3,7 @@ import { TELEGRAM_CHAT_ID } from '../config.js';
 import { now, json } from '../utils.js';
 import { escapeHtml, fmtPct } from '../format.js';
 import { db } from '../db/connection.js';
+import { enqueueSync } from '../db/outbox.js';
 import { numSetting, boolSetting, setSetting, activeStrategy, setActiveStrategy, strategyById, updateStrategyConfig } from '../db/settings.js';
 import { candidateById, latestCandidateByMint, updateCandidateStatus } from '../db/candidates.js';
 import { storeDecision, logDecisionEvent } from '../db/decisions.js';
@@ -191,10 +192,12 @@ export async function closePosition(chatId, id, reason) {
         pnl_percent = ?, pnl_sol = ?, exit_signature = ?
     WHERE id = ?
   `).run(now(), price, mcap, reason, pnlPercent, pnlSol, sell?.signature || null, id);
-  db.prepare(`
+  enqueueSync('dry_run_positions', id);
+  const tradeRes = db.prepare(`
     INSERT INTO dry_run_trades (position_id, mint, side, at_ms, price, mcap, size_sol, token_amount_est, reason, payload_json)
     VALUES (?, ?, 'sell', ?, ?, ?, ?, ?, ?, ?)
   `).run(id, row.mint, now(), price, mcap, row.size_sol, row.token_amount_est, reason, json({ pnlPercent, pnlSol, sell }));
+  enqueueSync('dry_run_trades', Number(tradeRes.lastInsertRowid));
   const label = row.execution_mode === 'live' ? 'Closed live position' : 'Closed dry-run position';
   await bot.sendMessage(chatId, `${label} #${id}: ${escapeHtml(reason)} ${fmtPct(pnlPercent)}`, { parse_mode: 'HTML' });
 }
@@ -202,6 +205,7 @@ export async function closePosition(chatId, id, reason) {
 export async function updatePositionRule(chatId, id, field, nextValue, query = null) {
   if (!Number.isFinite(nextValue)) return bot.sendMessage(chatId, 'Invalid value.');
   db.prepare(`UPDATE dry_run_positions SET ${field} = ? WHERE id = ?`).run(nextValue, id);
+  enqueueSync('dry_run_positions', id);
   const row = db.prepare('SELECT * FROM dry_run_positions WHERE id = ?').get(id);
   if (row) {
     db.prepare(`
@@ -223,6 +227,7 @@ export async function toggleTrailing(chatId, id, query = null) {
   if (!row) return bot.sendMessage(chatId, 'Position not found.');
   const next = row.trailing_enabled ? 0 : 1;
   db.prepare('UPDATE dry_run_positions SET trailing_enabled = ? WHERE id = ?').run(next, id);
+  enqueueSync('dry_run_positions', id);
   db.prepare(`
     INSERT INTO tp_sl_rules (position_id, tp_percent, sl_percent, trailing_enabled, trailing_percent, updated_at_ms)
     VALUES (?, ?, ?, ?, ?, ?)

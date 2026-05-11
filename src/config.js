@@ -39,6 +39,12 @@ export const SIGNAL_SERVER_URL = process.env.SIGNAL_SERVER_URL || '';
 export const SIGNAL_SERVER_KEY = process.env.SIGNAL_SERVER_KEY || '';
 export const SIGNAL_POLL_MS = Number(process.env.SIGNAL_POLL_MS || 30_000);
 
+export const POSTGRES_URL = process.env.POSTGRES_URL || '';
+export const CHARON_MACHINE_ID = process.env.CHARON_MACHINE_ID || '';
+export const CHARON_MACHINE_LABEL = process.env.CHARON_MACHINE_LABEL || '';
+export const POSTGRES_SYNC_INTERVAL_MS = Number(process.env.POSTGRES_SYNC_INTERVAL_MS || 5_000);
+export const POSTGRES_SYNC_BATCH_SIZE = Number(process.env.POSTGRES_SYNC_BATCH_SIZE || 100);
+
 export const JSON_HEADERS = {
   Accept: 'application/json, text/plain, */*',
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',

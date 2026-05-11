@@ -3,6 +3,7 @@ import { ENABLE_LLM, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_TIMEOUT_MS } from
 import { now, json, stripThinking, strictJsonFromText } from '../utils.js';
 import { fmtPct } from '../format.js';
 import { db } from '../db/connection.js';
+import { enqueueSync } from '../db/outbox.js';
 
 export function fallbackLessons(summary) {
   const lessons = [];
@@ -92,6 +93,9 @@ export function storeLearningRun(windowMs, summary, lessons, raw) {
     INSERT INTO learning_lessons (run_id, created_at_ms, status, lesson, evidence_json)
     VALUES (?, ?, 'active', ?, ?)
   `);
-  for (const item of lessons) insert.run(runId, now(), item.lesson, json(item.evidence || {}));
+  for (const item of lessons) {
+    const res = insert.run(runId, now(), item.lesson, json(item.evidence || {}));
+    enqueueSync('learning_lessons', Number(res.lastInsertRowid));
+  }
   return runId;
 }
