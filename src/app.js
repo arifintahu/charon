@@ -7,7 +7,7 @@ import { monitorPositions } from './execution/positions.js';
 import { processCandidateFromSignals, maybeProcessDegenCandidate } from './pipeline/orchestrator.js';
 import { sendTelegram } from './telegram/send.js';
 import { makeFailureTracker } from './utils.js';
-import { startPostgresSync } from './sync/postgresSink.js';
+import { startPostgresSync, stopPostgresSync } from './sync/postgresSink.js';
 import { machineId } from './db/machineId.js';
 import { logger } from './log.js';
 
@@ -70,4 +70,15 @@ export async function startCharon() {
   // Position monitoring runs in both modes
   const trackPositions = makeFailureTracker('position monitor', (msg) => sendTelegram(msg));
   setInterval(() => trackPositions(() => monitorPositions()), POSITION_CHECK_MS);
+
+  let shuttingDown = false;
+  async function shutdown(sig) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    botLog.info(`${sig} — draining`);
+    try { await stopPostgresSync(); } catch (err) { botLog.warn(`shutdown drain: ${err.message}`); }
+    process.exit(0);
+  }
+  process.on('SIGINT',  () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }

@@ -57,4 +57,7 @@ export function validateConfig() {
     throw new Error('HELIUS_API_KEY is required unless SOLANA_RPC_URL and SOLANA_WS_URL are set.');
   }
   if (GMGN_ENABLED && !GMGN_API_KEY) throw new Error('GMGN_API_KEY is required unless GMGN_ENABLED=false.');
+  if (process.env.TRADING_MODE === 'live' && process.env.CHARON_LIVE_CONFIRMED !== 'yes') {
+    throw new Error('TRADING_MODE=live requires CHARON_LIVE_CONFIRMED=yes (safety guard against accidental live trades).');
+  }
 }
