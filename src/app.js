@@ -1,6 +1,5 @@
 import { setDefaultResultOrder } from 'node:dns';
 import { APP_NAME, SIGNAL_SERVER_URL, SIGNAL_POLL_MS, GRADUATED_POLL_MS, TRENDING_POLL_MS, POSITION_CHECK_MS, validateConfig } from './config.js';
-import { initDb } from './db/connection.js';
 import { initLiveExecution } from './liveExecutor.js';
 import { setupTelegram } from './telegram/commands.js';
 import { monitorPositions } from './execution/positions.js';
@@ -20,7 +19,6 @@ setDefaultResultOrder('ipv4first');
 validateConfig();
 
 export async function startCharon() {
-  initDb();
   botLog.info(`machine_id ${machineId()}`);
   startPostgresSync();
   initLiveExecution();
