@@ -2,10 +2,10 @@ import { now, pruneSeen } from '../utils.js';
 import { numSetting, boolSetting } from '../db/settings.js';
 import { upsertCandidate, updateCandidateStatus, recentEligibleCandidates, candidateById } from '../db/candidates.js';
 import { storeDecision, storeBatchDecision, logDecisionEvent } from '../db/decisions.js';
-import { buildCandidate, filterCandidate, signalLabel } from './candidateBuilder.js';
+import { buildCandidate } from './candidateBuilder.js';
 import { decideCandidateBatch } from './llm.js';
 import { activeStrategy } from '../db/settings.js';
-import { createDryRunPosition, createLivePosition, canOpenMorePositions, openPositionCount, tradingMode } from '../db/positions.js';
+import { createDryRunPosition, canOpenMorePositions, openPositionCount, tradingMode } from '../db/positions.js';
 import { sendBatchReveal, sendTelegram, sendPositionOpen, sendTradeIntent } from '../telegram/send.js';
 import { candidateSummary } from '../telegram/format.js';
 import { createTradeIntent } from '../db/intents.js';
@@ -14,8 +14,7 @@ import { executeLiveBuy } from '../execution/router.js';
 import { graduated } from '../signals/graduated.js';
 import { setDegenHandler } from '../signals/trending.js';
 import { setCandidateHandler } from '../signals/feeClaim.js';
-import { short } from '../format.js';
-import { escapeHtml } from '../format.js';
+import { short, escapeHtml } from '../format.js';
 
 export const seenSignalCandidates = new Map();
 

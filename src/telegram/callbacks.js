@@ -1,7 +1,6 @@
 import { bot } from './bot.js';
 import { TELEGRAM_CHAT_ID } from '../config.js';
-import { now } from '../utils.js';
-import { numSetting, boolSetting, setSetting, setActiveStrategy, activeStrategy } from '../db/settings.js';
+import { boolSetting, setSetting, setActiveStrategy, activeStrategy } from '../db/settings.js';
 import {
   menuKeyboard,
   filtersText,
@@ -12,13 +11,11 @@ import {
   mainMenuText,
   walletsText,
   positionsText,
-  candidateButtons,
   sendTpSlDefaults,
   strategyMenuText,
   strategyKeyboard,
 } from './menus.js';
-import { sendTelegram, sendBatch, sendPositionOpen, sendTradeIntent } from './send.js';
-import { candidateSummary } from './format.js';
+import { sendBatch, sendPositionOpen } from './send.js';
 import { candidateById, updateCandidateStatus } from '../db/candidates.js';
 import { storeDecision, logDecisionEvent } from '../db/decisions.js';
 import { createDryRunPosition, canOpenMorePositions, openPositionCount, tradingMode } from '../db/positions.js';

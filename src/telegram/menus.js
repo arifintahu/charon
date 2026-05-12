@@ -1,4 +1,4 @@
-import { escapeHtml, fmtPct, fmtSol, fmtUsd, short } from '../format.js';
+import { escapeHtml, fmtPct, fmtSol, fmtUsd } from '../format.js';
 import { numSetting, boolSetting, setting, activeStrategy, allStrategies, hasEnabledStrategy } from '../db/settings.js';
 import { openPositionCount, tradingMode, allPositions } from '../db/positions.js';
 import { savedWallets } from '../enrichment/wallets.js';

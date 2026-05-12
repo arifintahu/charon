@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { ENABLE_LLM, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_TIMEOUT_MS } from '../config.js';
-import { now, stripThinking, strictJsonFromText } from '../utils.js';
+import { strictJsonFromText } from '../utils.js';
 import { activeStrategy } from '../db/settings.js';
 import { db } from '../db/connection.js';
 

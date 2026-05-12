@@ -4,26 +4,19 @@ import { now, json } from '../utils.js';
 import { escapeHtml, fmtPct } from '../format.js';
 import { db } from '../db/connection.js';
 import { enqueueSync } from '../db/outbox.js';
-import { numSetting, boolSetting, setSetting, activeStrategy, allStrategies, invalidateStrategyCache } from '../db/settings.js';
+import { setSetting, allStrategies, invalidateStrategyCache } from '../db/settings.js';
 import { loadStrategiesFromDisk, syncStrategiesToDb, diffStrategies } from '../db/strategySeeds.js';
-import { candidateById, latestCandidateByMint, updateCandidateStatus } from '../db/candidates.js';
-import { storeDecision, logDecisionEvent } from '../db/decisions.js';
+import { candidateById, latestCandidateByMint } from '../db/candidates.js';
 import {
   menuKeyboard,
   filtersText,
-  filtersKeyboard,
-  agentText,
-  agentKeyboard,
   navKeyboard,
   mainMenuText,
-  walletsText,
-  positionsText,
   candidateButtons,
   positionButtons,
   strategyMenuText,
   strategyKeyboard,
 } from './menus.js';
-import { sendTelegram, sendBatch, sendPositionOpen } from './send.js';
 import { candidateSummary, formatPosition } from './format.js';
 import { refreshPosition } from '../execution/positions.js';
 import { executeLiveSell } from '../execution/router.js';

@@ -1,5 +1,4 @@
-import { now, json } from '../utils.js';
-import { boolSetting } from '../db/settings.js';
+import { now } from '../utils.js';
 import { db } from '../db/connection.js';
 import { WSOL_MINT, LIVE_MIN_SOL_RESERVE_LAMPORTS } from '../config.js';
 import { escapeHtml, fmtSol } from '../format.js';
@@ -11,9 +10,7 @@ import { logDecisionEvent } from '../db/decisions.js';
 import { refreshCandidateForExecution } from './positions.js';
 import { bot } from '../telegram/bot.js';
 import { candidateSummary } from '../telegram/format.js';
-import { sendPositionOpen, sendTelegram } from '../telegram/send.js';
-import { updateCandidateStatus } from '../db/candidates.js';
-import { createTradeIntent } from '../db/intents.js';
+import { sendPositionOpen } from '../telegram/send.js';
 
 export async function executeLiveBuy(selectedRow, decision, batchId, rows = [], triggerCandidateId = null) {
   const strat = activeStrategy();
