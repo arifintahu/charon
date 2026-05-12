@@ -17,19 +17,6 @@ function parseJson(text, fallback = null) {
 }
 
 const TABLES = {
-  signal_events: {
-    select: 'SELECT * FROM signal_events WHERE id = ?',
-    transform: (row, mid) => [
-      mid, row.id, row.mint, row.kind, row.at_ms, row.source, parseJson(row.payload_json, {}),
-    ],
-    upsert: `
-      INSERT INTO signal_events (machine_id, local_id, mint, kind, at_ms, source, payload)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (machine_id, local_id) DO UPDATE SET
-        mint = EXCLUDED.mint, kind = EXCLUDED.kind, at_ms = EXCLUDED.at_ms,
-        source = EXCLUDED.source, payload = EXCLUDED.payload, synced_at = now()
-    `,
-  },
   candidates: {
     select: 'SELECT * FROM candidates WHERE id = ?',
     transform: (row, mid) => [

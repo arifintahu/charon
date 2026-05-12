@@ -3,7 +3,6 @@ import { JUPITER_API_KEY, JSON_HEADERS, TRENDING_LOOKBACK_MS } from '../config.j
 import { now, json } from '../utils.js';
 import { numSetting, boolSetting, setting, activeStrategy } from '../db/settings.js';
 import { db } from '../db/connection.js';
-import { enqueueSync } from '../db/outbox.js';
 import { gmgnBackoffActive, setGmgnBackoff, gmgnFetch, normalizedTrendingRows } from '../enrichment/gmgn.js';
 import { normalizeJupiterTrendingRow } from '../enrichment/jupiter.js';
 import { logger } from '../log.js';
@@ -16,11 +15,10 @@ export function setDegenHandler(fn) {
 }
 
 export function storeSignalEvent(mint, kind, source, payload) {
-  const result = db.prepare(`
+  db.prepare(`
     INSERT INTO signal_events (mint, kind, at_ms, source, payload_json)
     VALUES (?, ?, ?, ?, ?)
   `).run(mint, kind, now(), source, json(payload));
-  enqueueSync('signal_events', Number(result.lastInsertRowid));
 }
 
 export function trendingSignalPass(row) {

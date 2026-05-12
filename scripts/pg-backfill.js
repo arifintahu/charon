@@ -9,17 +9,6 @@ import { logger } from '../src/log.js';
 const log = logger('backfill');
 
 const TABLES = {
-  signal_events: {
-    selectAll: 'SELECT * FROM signal_events',
-    transform: (row, mid) => [
-      mid, row.id, row.mint, row.kind, row.at_ms, row.source, parseJson(row.payload_json, {}),
-    ],
-    upsert: `
-      INSERT INTO signal_events (machine_id, local_id, mint, kind, at_ms, source, payload)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ON CONFLICT (machine_id, local_id) DO NOTHING
-    `,
-  },
   candidates: {
     selectAll: 'SELECT * FROM candidates',
     transform: (row, mid) => [
