@@ -1,5 +1,8 @@
 import axios from 'axios';
 import { now } from '../utils.js';
+import { logger } from '../log.js';
+
+const log = logger('twitter');
 
 function extractTweetUrl(input) {
   const urls = [
@@ -91,7 +94,7 @@ async function fetchTwitterNarrative(graduatedCoin, gmgn) {
     const metrics = extractTweetMetricsFromFx(api.data);
     return { url, fxUrl: toFxTwitter(url), apiUrl, text, metrics, virality: viralityScore(metrics) };
   } catch (apiErr) {
-    console.log(`[twitter] api ${url} ${apiErr.response?.status || ''} ${apiErr.message}`);
+    log.warn(`api ${url} ${apiErr.response?.status || ''} ${apiErr.message}`);
   }
 
   try {
@@ -104,7 +107,7 @@ async function fetchTwitterNarrative(graduatedCoin, gmgn) {
     const metrics = extractTweetMetricsFromFx(res.data);
     return { url, fxUrl, text, metrics, virality: viralityScore(metrics) };
   } catch (err) {
-    console.log(`[twitter] ${url} ${err.message}`);
+    log.warn(`${url} ${err.message}`);
     return { url, fxUrl: toFxTwitter(url), text: null, error: err.message };
   }
 }

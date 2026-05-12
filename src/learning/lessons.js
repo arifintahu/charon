@@ -4,6 +4,9 @@ import { now, json, stripThinking, strictJsonFromText } from '../utils.js';
 import { fmtPct } from '../format.js';
 import { db } from '../db/connection.js';
 import { enqueueSync } from '../db/outbox.js';
+import { logger } from '../log.js';
+
+const log = logger('learn');
 
 export function fallbackLessons(summary) {
   const lessons = [];
@@ -78,7 +81,7 @@ export async function generateLessons(summary) {
       : [];
     return { lessons: lessons.length ? lessons.slice(0, 6) : fallback, raw: parsed };
   } catch (err) {
-    console.log(`[learn] LLM failed: ${err.message}`);
+    log.warn(`LLM failed: ${err.message}`);
     return { lessons: fallback, raw: { error: err.message, fallback: true } };
   }
 }

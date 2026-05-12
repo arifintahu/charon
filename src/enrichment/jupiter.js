@@ -1,6 +1,13 @@
 import axios from 'axios';
 import { WSOL_MINT, JSON_HEADERS } from '../config.js';
 import { now } from '../utils.js';
+import { logger } from '../log.js';
+
+const assetLog = logger('asset');
+const solPriceLog = logger('sol-price');
+const holdersLog = logger('holders');
+const chartLog = logger('chart');
+const pnlLog = logger('pnl');
 
 const jupiterAssetCache = new Map();
 let jupiterAssetBackoffUntil = 0;
@@ -14,7 +21,7 @@ function setJupiterAssetBackoff(err) {
   const resetHeader = Number(err.response?.headers?.['x-ratelimit-reset'] || 0);
   const resetMs = resetHeader > 1_000_000_000_000 ? resetHeader : resetHeader * 1000;
   jupiterAssetBackoffUntil = resetMs > now() ? resetMs : now() + 30_000;
-  console.log(`[asset] backing off until ${new Date(jupiterAssetBackoffUntil).toISOString()} (429)`);
+  assetLog.warn(`backing off until ${new Date(jupiterAssetBackoffUntil).toISOString()} (429)`);
 }
 
 function jupiterStatsForInterval(row, interval) {
@@ -72,7 +79,7 @@ async function fetchJupiterAsset(mint, { useCache = true, ttlMs = 20_000 } = {})
     return data;
   } catch (err) {
     setJupiterAssetBackoff(err);
-    if (err.response?.status !== 429) console.log(`[asset] ${mint.slice(0, 8)}... ${err.response?.status || ''} ${err.message}`);
+    if (err.response?.status !== 429) assetLog.warn(`${mint.slice(0, 8)}... ${err.response?.status || ''} ${err.message}`);
     return cached?.data || null;
   }
 }
@@ -86,7 +93,7 @@ async function fetchSolUsdPrice() {
     const price = Number(res.data?.[WSOL_MINT]?.usdPrice);
     return Number.isFinite(price) && price > 0 ? price : null;
   } catch (err) {
-    console.log(`[sol-price] ${err.response?.status || ''} ${err.message}`);
+    solPriceLog.warn(`${err.response?.status || ''} ${err.message}`);
     return null;
   }
 }
@@ -125,7 +132,7 @@ async function fetchJupiterHolders(mint) {
       maxHolderPercent: Math.max(0, ...top20.map(holder => Number(holder.percent || 0))),
     };
   } catch (err) {
-    console.log(`[holders] ${mint.slice(0, 8)}... ${err.response?.status || ''} ${err.message}`);
+    holdersLog.warn(`${mint.slice(0, 8)}... ${err.response?.status || ''} ${err.message}`);
     return { count: 0, holders: [], top20: [], top20Percent: null, maxHolderPercent: null };
   }
 }
@@ -178,7 +185,7 @@ async function fetchJupiterChartContext(mint) {
   ];
   const results = await Promise.all(windows.map(([interval, candles, label]) => (
     fetchJupiterChartWindow(mint, interval, candles, label).catch((err) => {
-      console.log(`[chart] ${mint.slice(0, 8)}... ${interval} ${err.message}`);
+      chartLog.warn(`${mint.slice(0, 8)}... ${interval} ${err.message}`);
       return { label, available: false, error: err.message };
     })
   )));
@@ -216,7 +223,7 @@ async function fetchJupiterWalletPnl(walletAddress) {
     for (const mint of IGNORED_PNL_MINTS) delete data[mint];
     return data;
   } catch (err) {
-    console.log(`[pnl] ${err.response?.status || ''} ${err.message}`);
+    pnlLog.warn(`${err.response?.status || ''} ${err.message}`);
     return {};
   }
 }

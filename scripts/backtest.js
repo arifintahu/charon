@@ -6,6 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { POSTGRES_URL } from '../src/config.js';
 import { closePostgres } from '../src/db/postgres.js';
 import { initDb } from '../src/db/connection.js';
+import { logger } from '../src/log.js';
+
+const log = logger('backtest');
+const sweepLog = logger('sweep');
+const validateLog = logger('validate-strategy');
 import { runBacktest, runValidation } from '../src/backtest/runner.js';
 import {
   summariseSimulated,
@@ -65,7 +70,7 @@ function parseArgs(argv) {
       case '--top':        out.top = Number(argv[++i]); break;
       case '--output':     out.output = String(argv[++i]); break;
       default:
-        if (a.startsWith('--')) console.warn(`[backtest] unknown flag ${a}`);
+        if (a.startsWith('--')) log.warn(`unknown flag ${a}`);
     }
   }
   return out;
@@ -163,7 +168,7 @@ async function runSingle(args, fromMs, toMs) {
 
   if (args.validateStrategy) {
     if (!strategyJson) {
-      console.error('[validate-strategy] requires --strategy <id>');
+      validateLog.error('requires --strategy <id>');
       process.exitCode = 1;
       return results;
     }
@@ -209,7 +214,7 @@ async function runSweep(args, fromMs, toMs) {
     });
     const summary = summariseSimulated(results);
     rows.push({ cell, summary });
-    console.error(`[sweep] ${i + 1}/${cells.length} ${JSON.stringify(cell)} → closed=${summary.closed} avg=${summary.avgPnl.toFixed(2)}%`);
+    sweepLog.info(`${i + 1}/${cells.length} ${JSON.stringify(cell)} → closed=${summary.closed} avg=${summary.avgPnl.toFixed(2)}%`);
   }
   if (args.output === 'json') console.log(JSON.stringify(rows, null, 2));
   else console.log(formatSweepReport(rows, { top: args.top }));
@@ -243,7 +248,7 @@ async function main() {
 }
 
 main().catch(error => {
-  console.error(`[backtest] failed: ${error.message}`);
+  log.error(`failed: ${error.message}`);
   process.exitCode = 1;
   closePostgres().finally(() => process.exit());
 });

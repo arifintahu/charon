@@ -15,6 +15,10 @@ import { graduated } from '../signals/graduated.js';
 import { setDegenHandler } from '../signals/trending.js';
 import { setCandidateHandler } from '../signals/feeClaim.js';
 import { short, escapeHtml } from '../format.js';
+import { logger } from '../log.js';
+
+const agentLog = logger('agent');
+const candidateLog = logger('candidate');
 
 export const seenSignalCandidates = new Map();
 
@@ -25,7 +29,7 @@ export async function processCandidateFromSignals(signals) {
   // Skip if max positions reached — don't waste enrichment/LLM calls
   if (!canOpenMorePositions()) {
     const max = activeStrategy().max_open_positions;
-    console.log(`[agent] max positions reached (${openPositionCount()}/${max}), skipping ${signals.mint.slice(0, 8)}...`);
+    agentLog.info(`max positions reached (${openPositionCount()}/${max}), skipping ${signals.mint.slice(0, 8)}...`);
     return;
   }
 
@@ -33,7 +37,7 @@ export async function processCandidateFromSignals(signals) {
   const signature = signals.signature || null;
   const candidateId = upsertCandidate(candidate, signature);
   if (!candidate.filters.passed) {
-    console.log(`[candidate] filtered ${candidate.token.mint.slice(0, 8)}... ${candidate.filters.failures.join('; ')}`);
+    candidateLog.info(`filtered ${candidate.token.mint.slice(0, 8)}... ${candidate.filters.failures.join('; ')}`);
     return;
   }
 
@@ -90,7 +94,7 @@ export async function processCandidateFromSignals(signals) {
   if (selectedRow && boolSetting('agent_enabled', true) && batchDecision.verdict === 'BUY' && batchDecision.confidence >= minConfidence) {
     if (!canOpenMorePositions()) {
       const max = strat.max_open_positions;
-      console.log(`[agent] max open positions reached (${openPositionCount()}/${max}), skipping buy ${selectedRow.candidate.token.mint}`);
+      agentLog.info(`max open positions reached (${openPositionCount()}/${max}), skipping buy ${selectedRow.candidate.token.mint}`);
       logDecisionEvent({
         batchId,
         triggerCandidateId: candidateId,

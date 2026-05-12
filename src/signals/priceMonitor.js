@@ -2,6 +2,9 @@ import { db } from '../db/connection.js';
 import { now, json } from '../utils.js';
 import { fetchJupiterAsset } from '../enrichment/jupiter.js';
 import { firstPositiveNumber } from '../utils.js';
+import { logger } from '../log.js';
+
+const log = logger('dip');
 
 let candidateHandler = null;
 
@@ -30,7 +33,7 @@ export function storePriceAlert({ mint, strategyId, alertType, targetPriceUsd, t
     now() + (expiresMs || 24 * 60 * 60 * 1000),
   );
   const id = Number(result.lastInsertRowid);
-  console.log(`[dip] alert #${id} for ${mint.slice(0, 8)}... target price: $${targetPriceUsd?.toFixed(8) || '?'}`);
+  log.info(`alert #${id} for ${mint.slice(0, 8)}... target price: $${targetPriceUsd?.toFixed(8) || '?'}`);
   return id;
 }
 
@@ -98,15 +101,15 @@ export async function monitorPriceAlerts() {
 
         db.prepare("UPDATE price_alerts SET status = 'triggered', triggered_at_ms = ? WHERE id = ?").run(now(), alert.id);
         triggered++;
-        console.log(`[dip] triggered ${alert.mint.slice(0, 8)}... at $${currentPrice.toFixed(8)} (target: $${alert.target_price_usd?.toFixed(8)})`);
+        log.info(`triggered ${alert.mint.slice(0, 8)}... at $${currentPrice.toFixed(8)} (target: $${alert.target_price_usd?.toFixed(8)})`);
       }
     } catch (err) {
-      console.log(`[dip] alert ${alert.id} error: ${err.message}`);
+      log.warn(`alert ${alert.id} error: ${err.message}`);
     }
   }
 
   if (triggered || expired) {
-    console.log(`[dip] ${triggered} triggered, ${expired} expired, ${alerts.length - triggered - expired} remaining`);
+    log.info(`${triggered} triggered, ${expired} expired, ${alerts.length - triggered - expired} remaining`);
   }
 }
 
@@ -114,5 +117,5 @@ export async function monitorPriceAlerts() {
 export function cleanupAlerts() {
   const cutoff = now() - 7 * 24 * 60 * 60 * 1000; // 7 days
   const result = db.prepare("DELETE FROM price_alerts WHERE status IN ('triggered', 'expired') AND created_at_ms < ?").run(cutoff);
-  if (result.changes > 0) console.log(`[dip] cleaned ${result.changes} old alerts`);
+  if (result.changes > 0) log.info(`cleaned ${result.changes} old alerts`);
 }

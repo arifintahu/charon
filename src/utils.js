@@ -1,3 +1,5 @@
+import { logger } from './log.js';
+
 export function now() {
   return Date.now();
 }
@@ -151,7 +153,7 @@ export function makeFailureTracker(name, alertFn, threshold = 3) {
       count = 0;
     } catch (err) {
       count++;
-      console.log(`[${name}] ${err.message}`);
+      logger(name).warn(err.message);
       if (count >= threshold) {
         alertFn(`⚠️ <b>${name}</b> failed ${count}x in a row: ${err.message}`).catch(() => {});
         count = 0;

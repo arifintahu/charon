@@ -4,6 +4,9 @@ import { now } from '../utils.js';
 import { activeStrategy } from '../db/settings.js';
 import { storeSignalEvent, trendingSignalPass, trending } from './trending.js';
 import { graduated } from './graduated.js';
+import { logger } from '../log.js';
+
+const log = logger('server');
 
 let candidateHandler = null;
 let degenHandler = null;
@@ -172,8 +175,8 @@ export async function fetchServerSignals() {
     }
 
     const dipPart = dipAlerts > 0 ? `, ${dipAlerts} dip alerts` : '';
-    console.log(`[server] ${processed} signals, ${triggered} triggered${dipPart}, tracking ${trending.size}`);
+    log.info(`${processed} signals, ${triggered} triggered${dipPart}, tracking ${trending.size}`);
   } catch (err) {
-    console.log(`[server] ${err.message}`);
+    log.warn(err.message);
   }
 }

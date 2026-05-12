@@ -14,6 +14,9 @@ import { updateCandidateSnapshot } from '../db/candidates.js';
 import { trending } from '../signals/trending.js';
 import { executeLiveSell } from './router.js';
 import { sendPositionExit } from '../telegram/send.js';
+import { logger } from '../log.js';
+
+const log = logger('position');
 
 export async function freshEntryMarket(mint, candidate) {
   const gmgn = await fetchGmgnTokenInfo(mint, false);
@@ -151,7 +154,7 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
   if (tick.partialTpTriggeredThisTick) {
     db.prepare('UPDATE dry_run_positions SET partial_tp_done = 1 WHERE id = ?').run(position.id);
     enqueueSync('dry_run_positions', position.id);
-    console.log(`[position] ${position.id} partial TP at ${pnlPercent.toFixed(1)}% (${strat.partial_tp_sell_percent}% sell)`);
+    log.info(`${position.id} partial TP at ${pnlPercent.toFixed(1)}% (${strat.partial_tp_sell_percent}% sell)`);
     if (position.execution_mode === 'live' && position.token_amount_raw) {
       try {
         const sellAmount = Math.floor(Number(position.token_amount_raw) * (strat.partial_tp_sell_percent / 100));
@@ -167,10 +170,10 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
             position.size_sol * (strat.partial_tp_sell_percent / 100), sellAmount,
             json({ pnlPercent, sell, partialSellPercent: strat.partial_tp_sell_percent, remaining }));
           enqueueSync('dry_run_trades', Number(tradeRes.lastInsertRowid));
-          console.log(`[position] ${position.id} partial TP sold ${sellAmount} tokens, ${remaining} remaining`);
+          log.info(`${position.id} partial TP sold ${sellAmount} tokens, ${remaining} remaining`);
         }
       } catch (err) {
-        console.log(`[position] ${position.id} partial sell failed: ${err.message}`);
+        log.warn(`${position.id} partial sell failed: ${err.message}`);
       }
     }
   }
@@ -261,7 +264,7 @@ export async function monitorPositions() {
       ? (walletPnlData[position.mint]?.pnl || null)
       : null;
     const result = await refreshPosition(position, { autoExit: true, jupiterPnl }).catch((err) => {
-      console.log(`[position] ${position.id} ${err.message}`);
+      log.warn(`${position.id} ${err.message}`);
       return null;
     });
     if (result?.exitReason) await sendPositionExit(result);

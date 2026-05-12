@@ -14,6 +14,7 @@
 - Three similar lines beats a premature abstraction.
 - Validate only at boundaries (user input, external APIs). Trust internal callers and framework guarantees.
 - No unused imports, exports, variables, parameters, or helper functions. After editing a file, check what you removed callers for and delete the now-orphaned imports/declarations in the same change. `grep -cw "<sym>" <file>` returning 1 means the symbol appears only on its import line — drop it. Keep imports collapsed: prefer one `import { a, b } from 'x'` over two lines from the same module.
+- Use `logger('<tag>')` from `src/log.js` (or `src/log.js` from scripts via `../src/log.js`) for all status/error output — never bare `console.log`. Declare the logger once at module top: `const log = logger('mytag');` then call `log.info(msg)`, `log.warn(msg)`, `log.error(msg)`. For files with multiple distinct tags, declare per-tag loggers (`const fooLog = logger('foo'); const barLog = logger('bar');`). For dynamic tags use `logger(\`prefix:${var}\`).info(...)` inline. Bare `console.log/error` is reserved for CLI scripts that emit data to stdout (JSON results, usage messages) — never for runtime status.
 
 ## Output
 

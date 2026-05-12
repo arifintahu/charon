@@ -4,6 +4,9 @@ import { pgPool, pgQuery, pgPing, postgresEnabled, closePostgres } from '../db/p
 import { machineId } from '../db/machineId.js';
 import { nextOutboxBatch, markOutboxSynced, backoffOutboxBatch, pruneSyncedOutbox } from '../db/outbox.js';
 import { safeJson } from '../utils.js';
+import { logger } from '../log.js';
+
+const log = logger('sync');
 
 function parseJson(text, fallback = null) {
   let value;
@@ -254,7 +257,7 @@ async function syncBatch(rows) {
 async function tick() {
   if (stopped) return;
   if (!(await pgPing())) return;
-  await ensureBotRow(machineId()).catch(error => console.log(`[sync] bot upsert failed: ${error.message}`));
+  await ensureBotRow(machineId()).catch(error => log.warn(`bot upsert failed: ${error.message}`));
   for (let i = 0; i < 5; i++) {
     const rows = nextOutboxBatch(POSTGRES_SYNC_BATCH_SIZE);
     if (!rows.length) break;
@@ -265,14 +268,14 @@ async function tick() {
 
 export function startPostgresSync() {
   if (!postgresEnabled()) {
-    console.log('[sync] POSTGRES_URL not set — sync disabled');
+    log.info('POSTGRES_URL not set — sync disabled');
     return;
   }
   if (timer) return;
-  console.log(`[sync] starting Postgres sync (interval ${POSTGRES_SYNC_INTERVAL_MS}ms, machine ${machineId()})`);
-  tick().catch(error => console.log(`[sync] initial tick failed: ${error.message}`));
+  log.info(`starting Postgres sync (interval ${POSTGRES_SYNC_INTERVAL_MS}ms, machine ${machineId()})`);
+  tick().catch(error => log.warn(`initial tick failed: ${error.message}`));
   timer = setInterval(
-    () => tick().catch(error => console.log(`[sync] tick failed: ${error.message}`)),
+    () => tick().catch(error => log.warn(`tick failed: ${error.message}`)),
     POSTGRES_SYNC_INTERVAL_MS,
   );
   if (typeof timer.unref === 'function') timer.unref();

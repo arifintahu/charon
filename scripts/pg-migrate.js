@@ -4,6 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { POSTGRES_URL } from '../src/config.js';
 import { pgQuery, closePostgres } from '../src/db/postgres.js';
+import { logger } from '../src/log.js';
+
+const log = logger('pg-migrate');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const schemaPath = path.resolve(here, '..', 'src', 'db', 'postgresSchema.sql');
@@ -15,12 +18,12 @@ async function main() {
   }
   const sql = fs.readFileSync(schemaPath, 'utf8');
   await pgQuery(sql);
-  console.log(`[pg-migrate] applied ${path.basename(schemaPath)}`);
+  log.info(`applied ${path.basename(schemaPath)}`);
   await closePostgres();
 }
 
 main().catch(error => {
-  console.error(`[pg-migrate] failed: ${error.message}`);
+  log.error(`failed: ${error.message}`);
   process.exitCode = 1;
   closePostgres().finally(() => process.exit());
 });

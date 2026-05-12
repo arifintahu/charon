@@ -24,6 +24,12 @@ import { handleCallback, editMenuMessage } from './callbacks.js';
 import { consumeNumericFilterInput } from './input.js';
 import { runLearning, sendLessons } from '../learning/commands.js';
 import { fetchWalletPnl } from '../enrichment/wallets.js';
+import { logger } from '../log.js';
+
+const positionLog = logger('position');
+const telegramLog = logger('telegram');
+const callbackLog = logger('callback');
+const messageLog = logger('message');
 
 export async function handleMessage(msg) {
   const text = (msg.text || '').trim();
@@ -147,7 +153,7 @@ export async function sendPosition(chatId, id, query = null) {
   if (!row) return bot.sendMessage(chatId, 'Position not found.');
   if (row.status === 'open') {
     const refreshed = await refreshPosition(row, { autoExit: row.execution_mode !== 'live' }).catch((err) => {
-      console.log(`[position] refresh ${id} ${err.message}`);
+      positionLog.warn(`refresh ${id} ${err.message}`);
       return null;
     });
     if (refreshed) row = { ...row, ...refreshed };
@@ -237,11 +243,11 @@ export function setupTelegram() {
     { command: 'walletadd', description: 'Save wallet for exposure/PnL' },
     { command: 'walletremove', description: 'Remove saved wallet' },
     { command: 'wallets', description: 'List saved wallets' },
-  ]).catch(err => console.log(`[telegram] commands ${err.message}`));
+  ]).catch(err => telegramLog.warn(`commands ${err.message}`));
 
-  bot.on('callback_query', query => handleCallback(query).catch(err => console.log(`[callback] ${err.message}`)));
-  bot.on('message', msg => handleMessage(msg).catch(err => console.log(`[message] ${err.message}`)));
-  bot.on('polling_error', err => console.log(`[telegram] polling ${err.message}`));
+  bot.on('callback_query', query => handleCallback(query).catch(err => callbackLog.warn(err.message)));
+  bot.on('message', msg => handleMessage(msg).catch(err => messageLog.warn(err.message)));
+  bot.on('polling_error', err => telegramLog.warn(`polling ${err.message}`));
 }
 
 async function sendMenu(chatId = TELEGRAM_CHAT_ID) {

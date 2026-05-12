@@ -1,6 +1,9 @@
 import axios from 'axios';
 import { JSON_HEADERS, GRADUATED_LOOKBACK_MS } from '../config.js';
 import { now } from '../utils.js';
+import { logger } from '../log.js';
+
+const log = logger('graduated');
 
 export const graduated = new Map();
 
@@ -22,5 +25,5 @@ export async function fetchGraduatedCoins() {
     const ts = Number(coin.graduationDate || coin.seenAt || 0);
     if (ts > 0 && ts < cutoff) graduated.delete(mint);
   }
-  console.log(`[graduated] loaded ${coins.length}, tracking ${graduated.size}`);
+  log.info(`loaded ${coins.length}, tracking ${graduated.size}`);
 }

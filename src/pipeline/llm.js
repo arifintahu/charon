@@ -3,6 +3,9 @@ import { ENABLE_LLM, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_TIMEOUT_MS } from
 import { strictJsonFromText } from '../utils.js';
 import { activeStrategy } from '../db/settings.js';
 import { db } from '../db/connection.js';
+import { logger } from '../log.js';
+
+const log = logger('llm');
 
 export function normalizeDecision(parsed, fallbackReason = '') {
   const verdict = ['BUY', 'WATCH', 'PASS'].includes(String(parsed?.verdict).toUpperCase())
@@ -134,7 +137,7 @@ export async function decideCandidateBatch(rows, triggerCandidateId) {
       selected_row: decision.verdict === 'BUY' && row ? row : null,
     };
   } catch (err) {
-    console.log(`[llm] batch failed: ${err.message}`);
+    log.warn(`batch failed: ${err.message}`);
     return {
       verdict: 'WATCH',
       confidence: 0,

@@ -6,6 +6,7 @@ import { db } from '../db/connection.js';
 import { enqueueSync } from '../db/outbox.js';
 import { gmgnBackoffActive, setGmgnBackoff, gmgnFetch, normalizedTrendingRows } from '../enrichment/gmgn.js';
 import { normalizeJupiterTrendingRow } from '../enrichment/jupiter.js';
+import { logger } from '../log.js';
 
 export const trending = new Map();
 let degenHandler = null;
@@ -42,7 +43,7 @@ export function trendingSignalPass(row) {
 
 export async function fetchJupiterTrendingRows(interval, limit) {
   if (!JUPITER_API_KEY) {
-    console.log('[trending:jupiter] JUPITER_API_KEY missing');
+    logger('trending:jupiter').warn('JUPITER_API_KEY missing');
     return [];
   }
   const supported = new Set(['5m', '1h', '6h', '24h']);
@@ -106,12 +107,12 @@ export async function fetchGmgnTrending() {
       storeSignalEvent(mint, 'trending', token.source || source, token);
       if (degenHandler) await degenHandler(mint, token);
     }
-    console.log(`[trending:${source}] loaded ${rows.length}, accepted ${tracked}, tracking ${trending.size}`);
+    logger(`trending:${source}`).info(`loaded ${rows.length}, accepted ${tracked}, tracking ${trending.size}`);
   } catch (err) {
     if (source === 'gmgn') setGmgnBackoff('trending', err);
     const status = err.response?.status || '';
     const body = err.response?.data;
     const resetAt = body?.reset_at ? ` reset_at=${body.reset_at}` : '';
-    if (source !== 'gmgn' || (status !== 403 && status !== 429)) console.log(`[trending:${source}] ${status} ${body?.code || ''} ${body?.message || err.message}${resetAt}`);
+    if (source !== 'gmgn' || (status !== 403 && status !== 429)) logger(`trending:${source}`).warn(`${status} ${body?.code || ''} ${body?.message || err.message}${resetAt}`);
   }
 }

@@ -4,6 +4,9 @@ import { db } from '../src/db/connection.js';
 import { machineId } from '../src/db/machineId.js';
 import { pgPool, closePostgres } from '../src/db/postgres.js';
 import { safeJson } from '../src/utils.js';
+import { logger } from '../src/log.js';
+
+const log = logger('backfill');
 
 const TABLES = {
   signal_events: {
@@ -170,7 +173,7 @@ async function backfillTable(tableName, mid, fromMs) {
   select += ' ORDER BY id ASC';
   const rows = db.prepare(select).all(...params);
   if (!rows.length) {
-    console.log(`[backfill] ${tableName}: 0 rows`);
+    log.info(`${tableName}: 0 rows`);
     return 0;
   }
   const pool = pgPool();
@@ -189,7 +192,7 @@ async function backfillTable(tableName, mid, fromMs) {
   } finally {
     client.release();
   }
-  console.log(`[backfill] ${tableName}: ${written} rows`);
+  log.info(`${tableName}: ${written} rows`);
   return written;
 }
 
@@ -200,18 +203,18 @@ async function main() {
   }
   const { tables, from } = parseArgs(process.argv);
   const mid = machineId();
-  console.log(`[backfill] machine ${mid}`);
+  log.info(`machine ${mid}`);
   const targets = tables && tables.length ? tables : Object.keys(TABLES);
   let total = 0;
   for (const t of targets) {
     total += await backfillTable(t, mid, from);
   }
-  console.log(`[backfill] done — ${total} rows total`);
+  log.info(`done — ${total} rows total`);
   await closePostgres();
 }
 
 main().catch(error => {
-  console.error(`[backfill] failed: ${error.message}`);
+  log.error(`failed: ${error.message}`);
   process.exitCode = 1;
   closePostgres().finally(() => process.exit());
 });

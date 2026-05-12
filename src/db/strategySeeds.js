@@ -2,6 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateStrategyConfig } from '../strategy/schema.js';
+import { logger } from '../log.js';
+
+const log = logger('strategies');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DIR = path.resolve(__dirname, '../../strategies');
@@ -92,8 +95,7 @@ export function syncStrategiesToDb(db, strategies, { invalidateCache } = {}) {
   if (typeof invalidateCache === 'function') invalidateCache();
   if (!strategies.some(s => s.enabled)) {
     const ids = strategies.map(s => s.id).join(', ');
-    console.warn([
-      '',
+    log.warn([
       '⚠️  No strategy has enabled: true in strategies/*.json.',
       `   Available: ${ids}`,
       '   Trading will fall back to the "sniper" config silently.',
@@ -101,7 +103,6 @@ export function syncStrategiesToDb(db, strategies, { invalidateCache } = {}) {
       '     1. npm run backtest -- --strategy <id> --from 7d --validate-strategy',
       '     2. set "enabled": true in strategies/<id>.json',
       '     3. node scripts/cmd.js resetstrategies confirm   (or restart)',
-      '',
     ].join('\n'));
   }
 }

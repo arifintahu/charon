@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { GMGN_API_KEY, GMGN_CACHE_TTL_MS, GMGN_ENABLED, JSON_HEADERS } from '../config.js';
 import { now, sleep } from '../utils.js';
 import { numSetting, setting } from '../db/settings.js';
+import { logger } from '../log.js';
+
+const log = logger('gmgn');
 
 const gmgnCache = new Map();
 let lastGmgnRequestAt = 0;
@@ -118,7 +121,7 @@ function setGmgnBackoff(kind, err) {
   const reason = gmgnErrorText(status, body, err.message);
   gmgnBackoff[gmgnBackoffKey(kind)] = until;
   gmgnBackoff[gmgnReasonKey(kind)] = reason;
-  console.log(`[gmgn:${kind}] backing off until ${new Date(until).toISOString()} (${reason})`);
+  logger(`gmgn:${kind}`).warn(`backing off until ${new Date(until).toISOString()} (${reason})`);
 }
 
 function gmgnStatusText(kind) {
@@ -161,7 +164,7 @@ async function fetchGmgnTokenInfo(mint, useCache = true) {
   } catch (err) {
     setGmgnBackoff('token', err);
     if (err.response?.status !== 403 && err.response?.status !== 429) {
-      console.log(`[gmgn] ${mint.slice(0, 8)}... ${err.response?.status || ''} ${err.message}`);
+      log.warn(`${mint.slice(0, 8)}... ${err.response?.status || ''} ${err.message}`);
     }
     gmgnCache.set(mint, { at: now(), data: null });
     return null;

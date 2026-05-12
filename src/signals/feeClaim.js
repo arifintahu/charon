@@ -3,6 +3,10 @@ import { PUMP_PROGRAM, PUMP_AMM, DISC_DIST_FEES, SOLANA_WS_URL } from '../config
 import { now, pruneSeen, lamToSol, discMatch, parseDistFees } from '../utils.js';
 import { activeStrategy, boolSetting } from '../db/settings.js';
 import { storeSignalEvent } from './trending.js';
+import { logger } from '../log.js';
+
+const feeLog = logger('fee');
+const wsLog = logger('ws');
 import { graduated } from './graduated.js';
 import { trending } from './trending.js';
 import { buildFeeSnapshot } from '../pipeline/candidateBuilder.js';
@@ -58,7 +62,7 @@ async function processLog(logInfo) {
     try {
       await handleFeeClaim(parseDistFees(data), signature);
     } catch (error) {
-      console.log(`[fee] parse/alert failed: ${error.message}`);
+      feeLog.warn(`parse/alert failed: ${error.message}`);
     }
   }
 }
@@ -70,7 +74,7 @@ export function startWebsocket() {
   function connect() {
     ws = new WebSocket(wsUrl);
     ws.on('open', () => {
-      console.log('[ws] connected');
+      wsLog.info('connected');
       for (const [id, program] of [[1, PUMP_PROGRAM], [2, PUMP_AMM]]) {
         ws.send(JSON.stringify({
           jsonrpc: '2.0',
@@ -92,15 +96,15 @@ export function startWebsocket() {
       }
       const value = msg.params?.result?.value;
       if (msg.method === 'logsNotification' && value) {
-        processLog(value).catch(error => console.log(`[ws] process failed: ${error.message}`));
+        processLog(value).catch(error => wsLog.warn(`process failed: ${error.message}`));
       }
     });
     ws.on('close', () => {
       clearInterval(pingTimer);
-      console.log('[ws] closed, reconnecting in 5s');
+      wsLog.warn('closed, reconnecting in 5s');
       setTimeout(connect, 5000);
     });
-    ws.on('error', error => console.log(`[ws] ${error.message}`));
+    ws.on('error', error => wsLog.warn(error.message));
   }
   connect();
 }

@@ -9,6 +9,9 @@ import {
   SOLANA_PRIVATE_KEY,
   SOLANA_RPC_URL,
 } from './config.js';
+import { logger } from './log.js';
+
+const log = logger('live');
 
 let liveWallet = null;
 let solanaConnection = null;
@@ -25,11 +28,11 @@ export function initLiveExecution() {
   try {
     liveWallet = parseKeypair(SOLANA_PRIVATE_KEY);
     solanaConnection = new Connection(SOLANA_RPC_URL, 'confirmed');
-    console.log(`[live] wallet loaded ${liveWallet.publicKey.toBase58()}`);
+    log.info(`wallet loaded ${liveWallet.publicKey.toBase58()}`);
   } catch (err) {
     liveWallet = null;
     solanaConnection = null;
-    console.log(`[live] wallet load failed: ${err.message}`);
+    log.error(`wallet load failed: ${err.message}`);
   }
 }
 
@@ -47,7 +50,7 @@ export async function fetchLiveTokenBalance(mint) {
     );
     return accounts.value[0]?.account?.data?.parsed?.info?.tokenAmount?.amount || null;
   } catch (err) {
-    console.log(`[live] token balance ${mint.slice(0, 8)}... ${err.message}`);
+    log.warn(`token balance ${mint.slice(0, 8)}... ${err.message}`);
     return null;
   }
 }

@@ -2,6 +2,9 @@
 import { POSTGRES_URL } from '../src/config.js';
 import { pgQuery, closePostgres } from '../src/db/postgres.js';
 import { ensureCandles, intervalSeconds } from '../src/backtest/candles.js';
+import { logger } from '../src/log.js';
+
+const log = logger('fetch');
 
 function parseArgs(argv) {
   const out = { window: '7d', interval: '5_MINUTE', mint: null, sleepMs: 150, padMs: 30 * 60_000 };
@@ -50,7 +53,7 @@ async function main() {
   const toMs = Date.now();
   const fromMs = toMs - windowMs(args.window);
   const mints = await listMints({ fromMs, toMs, only: args.mint });
-  console.log(`[fetch] ${mints.length} mints, window ${args.window}, interval ${args.interval}`);
+  log.info(`${mints.length} mints, window ${args.window}, interval ${args.interval}`);
   let totalInserted = 0;
   for (let i = 0; i < mints.length; i++) {
     const mint = mints[i];
@@ -64,18 +67,18 @@ async function main() {
         toMs: end,
       });
       totalInserted += fetched;
-      console.log(`[fetch] ${i + 1}/${mints.length} ${mint.slice(0, 8)}… cached=${rows.length} new=${fetched} pages=${pages}`);
+      log.info(`${i + 1}/${mints.length} ${mint.slice(0, 8)}… cached=${rows.length} new=${fetched} pages=${pages}`);
     } catch (error) {
-      console.log(`[fetch] ${mint.slice(0, 8)}… failed: ${error.message}`);
+      log.warn(`${mint.slice(0, 8)}… failed: ${error.message}`);
     }
     if (i + 1 < mints.length) await sleep(args.sleepMs);
   }
-  console.log(`[fetch] done — ${totalInserted} new candles inserted (interval ${args.interval}, step ${intervalSeconds(args.interval)}s)`);
+  log.info(`done — ${totalInserted} new candles inserted (interval ${args.interval}, step ${intervalSeconds(args.interval)}s)`);
   await closePostgres();
 }
 
 main().catch(error => {
-  console.error(`[fetch] failed: ${error.message}`);
+  log.error(`failed: ${error.message}`);
   process.exitCode = 1;
   closePostgres().finally(() => process.exit());
 });

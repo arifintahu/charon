@@ -1,4 +1,7 @@
 import axios from 'axios';
+import { logger } from '../log.js';
+
+const log = logger('axiom');
 
 export const axiom = new Map();
 
@@ -62,10 +65,10 @@ export async function fetchAxiomTrending(timePeriod = '1h') {
       if (Number(token.seenAt || 0) < cutoff) axiom.delete(mint);
     }
 
-    console.log(`[axiom] loaded ${rows.length}, tracking ${axiom.size}`);
+    log.info(`loaded ${rows.length}, tracking ${axiom.size}`);
     return rows;
   } catch (err) {
-    console.log(`[axiom] ${err.response?.status || ''} ${err.message}`);
+    log.warn(`${err.response?.status || ''} ${err.message}`);
     return [];
   }
 }

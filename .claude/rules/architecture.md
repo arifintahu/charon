@@ -23,7 +23,7 @@ Canonical pipeline diagram: `docs/workflow.mmd`.
 | Backtesting | `src/backtest/{candles,simulator,runner,report}.js`, `scripts/backtest{,-fetch}.js` |
 | Learning / reports | `src/learning/{commands,lessons,report,summary}.js` |
 | Config | `src/config.js`, `.env`, `docker-compose.yml` |
-| Utilities | `src/utils.js`, `src/format.js` |
+| Utilities | `src/utils.js`, `src/format.js`, `src/log.js` (timestamped `logger('<tag>')` — never use bare `console.log` for runtime status) |
 
 ## Operating modes
 
