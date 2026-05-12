@@ -17,7 +17,8 @@ Canonical pipeline diagram: `docs/workflow.mmd`.
 | LLM screening | `src/pipeline/llm.js` |
 | Execution | `src/execution/{router,positions,exitSimulator}.js`, `src/liveExecutor.js` |
 | Telegram I/O | `src/telegram/{commands,callbacks,menus,send,format,input,bot}.js` |
-| Persistence (SQLite) | `src/db/{connection,candidates,decisions,intents,positions,settings,outbox,machineId}.js` |
+| Persistence (SQLite) | `src/db/{connection,candidates,decisions,intents,positions,settings,outbox,machineId,strategySeeds}.js` |
+| Strategies | `strategies/*.json` (source of truth), `src/strategy/schema.js` (whitelist + validator), `src/db/strategySeeds.js` (loader + sync) |
 | Persistence (Postgres) | `src/db/postgres.js`, `src/db/postgresSchema.sql`, `src/sync/postgresSink.js` |
 | Backtesting | `src/backtest/{candles,simulator,runner,report}.js`, `scripts/backtest{,-fetch}.js` |
 | Learning / reports | `src/learning/{commands,lessons,report,summary}.js` |
@@ -47,7 +48,8 @@ Position monitor (`monitorPositions`) runs in both modes on `POSITION_CHECK_MS`.
 
 - `charon.sqlite` (better-sqlite3) is the trading hot-path source of truth.
 - Open positions resume monitoring after restart.
-- Strategy configs and per-strategy thresholds are hot-read from SQLite — menu changes apply without restart.
+- Strategy configs are hot-read from SQLite (5s cache) — but **SQLite strategies are a working copy of `strategies/*.json`**. Every boot rebuilds the table from those files via `src/db/strategySeeds.js#syncStrategiesToDb` (REPLACE, not merge). To change a strategy: edit its JSON file, then restart or `/resetstrategies confirm`.
+- A strategy may only carry `enabled: true` if its JSON has a `validation` block under 30 days old. Run `npm run backtest -- --strategy <id> --from 7d --validate-strategy` to populate it (atomic write).
 - `.env` values (API keys, wallet key, RPC URLs, polling intervals) require restart.
 
 ### Postgres analytics sink (optional)

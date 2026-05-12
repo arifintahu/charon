@@ -10,7 +10,8 @@ Trading hot path writes to local `charon.sqlite` (better-sqlite3, synchronous, n
 
 ## Storage
 
-- **Local SQLite** (`charon.sqlite`) — source of truth for trading. Open positions resume after restart. Strategy/settings hot-read with 5s cache.
+- **`strategies/*.json`** — source of truth for strategy definitions. Every boot rebuilds the SQLite `strategies` table from these files via `src/db/strategySeeds.js#syncStrategiesToDb` (REPLACE, not merge). To change a strategy: edit the JSON file, then either restart or `node scripts/cmd.js resetstrategies confirm`. The 5s cache picks the new values up automatically. A strategy may only carry `enabled: true` if its `validation` block is under 30 days old — populate it with `npm run backtest -- --strategy <id> --from 7d --validate-strategy`.
+- **Local SQLite** (`charon.sqlite`) — hot path for trading state (positions, intents, decisions, candidates). Strategy rows live here too but as a working copy of the JSON. Open positions resume after restart. Strategy/settings hot-read with 5s cache.
 - **Postgres** (optional) — analytic sink populated by `src/sync/postgresSink.js` from `sync_outbox` rows. Per-row `machine_id` partitions data across bot instances. `historical_candles` cache for the backtester lives here. Live state (positions, intents, guardrails) is per-machine; Postgres only pools analytics.
 - Sync runs every `POSTGRES_SYNC_INTERVAL_MS` (default 5s), batched 100 rows, idempotent via `ON CONFLICT (machine_id, local_id) DO UPDATE`.
 - If `POSTGRES_URL` is unset, the bot still runs — sync is a no-op.
@@ -40,6 +41,7 @@ npm run pg:down       # stop container (data persists in named volume)
 - `npm run backtest -- --validate --from <w>` re-runs closed positions through the simulator.
 - `npm run backtest -- --from <w> --override-tp 75 --override-sl -30 --override-llm-min-confidence 70` for single-config replay.
 - `npm run backtest -- --from <w> --spec path/to/sweep.json --top 10` for cartesian sweeps.
+- `npm run backtest -- --strategy <id> --from <w> --validate-strategy` replays archived candidates through `strategies/<id>.json` and, on a passing run (≥10 trades, avg PnL > 0, worst PnL ≥ -50%), atomically writes a `validation` block back to the JSON file. Required before a strategy can be `enabled: true`.
 - All reads go through Postgres; the backtester never touches SQLite directly. Run `pg:backfill` first if porting older data.
 
 ## Layout
@@ -48,6 +50,7 @@ npm run pg:down       # stop container (data persists in named volume)
 |---|---|
 | File map, modes, gotchas | @.claude/rules/architecture.md |
 | Writing/code style rules | @.claude/rules/writing-style.md |
+| Strategy definitions | `strategies/*.json` (one file per strategy, source of truth) |
 | Slash commands | `.claude/commands/` |
 | Project subagents | `.claude/agents/` |
 | Workflow skills | `.claude/skills/` |

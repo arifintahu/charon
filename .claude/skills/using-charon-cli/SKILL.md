@@ -13,14 +13,14 @@ The Telegram bot's handlers are wired to a single `bot` instance. `scripts/cmd.j
 # Read-only
 node scripts/cmd.js positions
 node scripts/cmd.js filters
-node scripts/cmd.js strategy
+node scripts/cmd.js strategy                       # show strategy menu (read-only)
 node scripts/cmd.js lessons
-node scripts/cmd.js pnl                       # network
-node scripts/cmd.js candidate <mint>          # network
+node scripts/cmd.js pnl                            # network
+node scripts/cmd.js candidate <mint>               # network
 
 # State changes (write to charon.sqlite; running bot hot-reads)
-node scripts/cmd.js strategy sniper
-node scripts/cmd.js stratset sniper tp_percent 75
+node scripts/cmd.js resetstrategies                # diff sqlite vs strategies/*.json
+node scripts/cmd.js resetstrategies confirm        # apply (after editing a JSON file)
 node scripts/cmd.js setfilter min_mcap_usd 5000
 node scripts/cmd.js walletadd alpha 9xQ...
 node scripts/cmd.js learn 12h
@@ -36,7 +36,7 @@ Slash-command equivalents inside Claude Code: `/positions`, `/strategy`, `/filte
 
 ## Constraints
 
-- **No keyboard callbacks.** If a Telegram interaction is callback-only (e.g. the partial-TP toggle button), find the text command that does the same write — `stratset`, `setfilter`, etc. The `[buttons]` block in the output tells you what's available.
+- **No keyboard callbacks.** If a Telegram interaction is callback-only, find the text command that does the same write — `setfilter`, `resetstrategies`, etc. The `[buttons]` block in the output tells you what's available. To change strategy params, edit `strategies/<id>.json` and run `resetstrategies confirm`.
 - **Live mutations.** Writes go straight to `charon.sqlite`. The running bot will pick them up on its next hot-read. If you need a sandbox, copy the DB first and set `DB_PATH` in `.env`.
 - **Network costs.** `pnl`, `candidate <mint>`, `learn` make real API calls. Don't bulk-run them just to explore.
 - **Config required.** `validateConfig()` still runs — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, RPC, etc. must be in `.env` even though the CLI doesn't open Telegram.

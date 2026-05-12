@@ -111,11 +111,7 @@ LLM_CANDIDATE_MAX_AGE_MS=600000
 
 Set `ENABLE_LLM=false` to disable LLM globally. Individual strategies also have a `use_llm` flag — strategies with `use_llm: false` (e.g. `degen`) auto-approve any candidate that passes filters without calling the LLM.
 
-Each strategy has its own `llm_min_confidence` threshold. Configure it from `/menu → Strategy`, or:
-
-```bash
-/stratset sniper llm_min_confidence 70
-```
+Each strategy has its own `llm_min_confidence` threshold. Edit it in `strategies/<id>.json`, then run `/resetstrategies confirm` (or restart) to apply.
 
 ## Execution Modes
 
@@ -142,32 +138,38 @@ Swaps use Jupiter Ultra mode — slippage and routing are handled automatically 
 
 ## Strategies
 
-Use `/menu → Strategy` or commands:
+Strategies live in `strategies/*.json` — one file per strategy is the **only** source of truth. Each boot rebuilds the SQLite `strategies` table from those files.
 
 ```bash
-/strategy
-/strategy sniper
-/strategy dip_buy
-/strategy smart_money
-/strategy degen
-/stratset sniper tp_percent 75
+/menu → Strategy        # show menu, switch active via inline buttons
+/strategy               # text shortcut — same menu
+/resetstrategies        # dry-run diff vs disk
+/resetstrategies confirm  # re-sync mid-run after editing a JSON file
 ```
 
-Default strategies:
+Default strategies (under `strategies/`):
 
-- `sniper`: fee-claim overlap, immediate entry, LLM on.
-- `dip_buy`: waits for ATH-distance dip alerts.
-- `smart_money`: stricter holder/trending quality, partial TP support.
-- `degen`: lower source threshold, rule-based (no LLM).
+- `sniper.json`: fee-claim overlap, immediate entry, LLM on.
+- `dip_buy.json`: waits for ATH-distance dip alerts.
+- `smart_money.json`: stricter holder/trending quality, partial TP support.
+- `degen.json`: lower source threshold, rule-based (no LLM).
 
-Strategy settings are stored in SQLite and hot-read. Menu changes apply without restart.
+To change a strategy: edit the JSON file, then either restart or `/resetstrategies confirm`. The 5s strategy cache picks the new values up automatically.
+
+A strategy can only be marked `enabled: true` once it has a fresh `validation` block (≤ 30 days old). Generate one by running:
+
+```bash
+npm run backtest -- --strategy <id> --from 7d --validate-strategy
+```
+
+If the run passes (≥10 trades, avg PnL > 0, worst PnL ≥ -50%), the JSON file is rewritten in place with the new marker.
 
 ## Telegram Commands
 
 ```bash
 /menu
 /strategy
-/stratset <strategy_id> <key> <value>
+/resetstrategies [confirm]
 /positions
 /candidate <mint>
 /filters

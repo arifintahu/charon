@@ -53,19 +53,20 @@ export function allStrategies() {
   }));
 }
 
+export function hasEnabledStrategy() {
+  return Boolean(db.prepare('SELECT 1 FROM strategies WHERE enabled = 1 LIMIT 1').get());
+}
+
 export function setActiveStrategy(id) {
   db.prepare('UPDATE strategies SET enabled = 0').run();
   db.prepare('UPDATE strategies SET enabled = 1 WHERE id = ?').run(id);
-  strategyCache.config = null;
-  strategyCache.at = 0;
+  invalidateStrategyCache();
 }
 
-export function updateStrategyConfig(id, config) {
-  db.prepare('UPDATE strategies SET config_json = ? WHERE id = ?').run(JSON.stringify(config), id);
-  if (strategyCache.id === id) {
-    strategyCache.config = null;
-    strategyCache.at = 0;
-  }
+export function invalidateStrategyCache() {
+  strategyCache.id = null;
+  strategyCache.config = null;
+  strategyCache.at = 0;
 }
 
 export function strategySetting(key, fallback) {

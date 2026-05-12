@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ENABLE_LLM, LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_TIMEOUT_MS } from '../config.js';
 import { now, stripThinking, strictJsonFromText } from '../utils.js';
-import { numSetting } from '../db/settings.js';
+import { activeStrategy } from '../db/settings.js';
 import { db } from '../db/connection.js';
 
 export function normalizeDecision(parsed, fallbackReason = '') {
@@ -13,8 +13,8 @@ export function normalizeDecision(parsed, fallbackReason = '') {
     confidence: Math.max(0, Math.min(100, Number(parsed?.confidence) || 0)),
     reason: String(parsed?.reason || fallbackReason).slice(0, 1000),
     risks: Array.isArray(parsed?.risks) ? parsed.risks.map(String).slice(0, 8) : [],
-    suggested_tp_percent: Number(parsed?.suggested_tp_percent) || numSetting('default_tp_percent', 50),
-    suggested_sl_percent: Number(parsed?.suggested_sl_percent) || numSetting('default_sl_percent', -25),
+    suggested_tp_percent: Number(parsed?.suggested_tp_percent) || activeStrategy().tp_percent,
+    suggested_sl_percent: Number(parsed?.suggested_sl_percent) || activeStrategy().sl_percent,
     raw: parsed,
   };
 }
@@ -74,8 +74,8 @@ export async function decideCandidateBatch(rows, triggerCandidateId) {
       selected_mint: null,
       reason: 'LLM disabled or LLM_API_KEY missing.',
       risks: ['no_llm_decision'],
-      suggested_tp_percent: numSetting('default_tp_percent', 50),
-      suggested_sl_percent: numSetting('default_sl_percent', -25),
+      suggested_tp_percent: activeStrategy().tp_percent,
+      suggested_sl_percent: activeStrategy().sl_percent,
       raw: null,
     };
   }
@@ -142,8 +142,8 @@ export async function decideCandidateBatch(rows, triggerCandidateId) {
       selected_mint: null,
       reason: `LLM failed: ${err.message}`,
       risks: ['llm_error'],
-      suggested_tp_percent: numSetting('default_tp_percent', 50),
-      suggested_sl_percent: numSetting('default_sl_percent', -25),
+      suggested_tp_percent: activeStrategy().tp_percent,
+      suggested_sl_percent: activeStrategy().sl_percent,
       raw: { error: err.message },
     };
   }

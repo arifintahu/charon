@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { POSTGRES_URL } from '../src/config.js';
 import { closePostgres } from '../src/db/postgres.js';
 import { initDb } from '../src/db/connection.js';
@@ -10,6 +13,9 @@ import {
   formatSweepReport,
   formatValidationReport,
 } from '../src/backtest/report.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const STRATEGIES_DIR = path.resolve(__dirname, '../strategies');
 
 function parseArgs(argv) {
   const out = {
@@ -22,6 +28,9 @@ function parseArgs(argv) {
     unscreenedPolicy: 'cohort',
     machineId: null,
     strategyId: null,
+    validateStrategy: false,
+    minTrades: 10,
+    maxDrawdown: -50,
     overrides: { strategy: {}, llm_min_confidence: null },
     spec: null,
     top: 10,
@@ -31,6 +40,9 @@ function parseArgs(argv) {
     const a = argv[i];
     switch (a) {
       case '--validate':   out.mode = 'validate'; break;
+      case '--validate-strategy': out.validateStrategy = true; break;
+      case '--min-trades':   out.minTrades = Number(argv[++i]); break;
+      case '--max-drawdown': out.maxDrawdown = Number(argv[++i]); break;
       case '--from':       out.window = String(argv[++i]); break;
       case '--window':     out.window = String(argv[++i]); break;
       case '--to':         out.to = Number(argv[++i]); break;
@@ -57,6 +69,40 @@ function parseArgs(argv) {
     }
   }
   return out;
+}
+
+function loadStrategyJson(id) {
+  const p = path.join(STRATEGIES_DIR, `${id}.json`);
+  if (!fs.existsSync(p)) throw new Error(`strategy file not found: ${p}`);
+  return { path: p, json: JSON.parse(fs.readFileSync(p, 'utf8')) };
+}
+
+function currentGitSha() {
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: path.resolve(__dirname, '..'), stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString().trim();
+  } catch {
+    return 'unknown';
+  }
+}
+
+function writeValidationMarker(filePath, json, summary, args) {
+  const next = {
+    ...json,
+    validation: {
+      validated_at_ms: Date.now(),
+      window: args.window,
+      trades: summary.closed,
+      win_rate_pct: Number(summary.winRate.toFixed(2)),
+      avg_pnl_pct: Number(summary.avgPnl.toFixed(2)),
+      median_pnl_pct: Number(summary.medianPnl.toFixed(2)),
+      max_drawdown_pct: Number(summary.worstPnl.toFixed(2)),
+      git_sha: currentGitSha(),
+    },
+  };
+  const tmp = `${filePath}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2) + '\n');
+  fs.renameSync(tmp, filePath);
 }
 
 function windowMs(spec) {
@@ -89,17 +135,53 @@ function cartesian(spec) {
 }
 
 async function runSingle(args, fromMs, toMs) {
+  let strategyJson = null;
+  let strategyPath = null;
+  let overrides = args.overrides;
+  let strategyId = args.strategyId;
+  if (args.strategyId) {
+    const loaded = loadStrategyJson(args.strategyId);
+    strategyJson = loaded.json;
+    strategyPath = loaded.path;
+    overrides = {
+      ...args.overrides,
+      strategy: { ...strategyJson.config, ...args.overrides.strategy },
+    };
+    if (args.validateStrategy) strategyId = null;
+  }
   const results = await runBacktest({
     fromMs, toMs,
-    overrides: args.overrides,
+    overrides,
     machineId: args.machineId,
-    strategyId: args.strategyId,
+    strategyId,
     interval: args.interval,
     candleOrderRule: args.candleRule,
     unscreenedPolicy: args.unscreenedPolicy,
   });
   if (args.output === 'json') console.log(JSON.stringify(results, null, 2));
   else console.log(formatSingleReport(results));
+
+  if (args.validateStrategy) {
+    if (!strategyJson) {
+      console.error('[validate-strategy] requires --strategy <id>');
+      process.exitCode = 1;
+      return results;
+    }
+    const summary = summariseSimulated(results);
+    const failures = [];
+    if (summary.closed < args.minTrades) failures.push(`closed trades ${summary.closed} < min ${args.minTrades}`);
+    if (summary.avgPnl <= 0) failures.push(`avg pnl ${summary.avgPnl.toFixed(2)}% must be > 0`);
+    if (summary.worstPnl < args.maxDrawdown) failures.push(`worst pnl ${summary.worstPnl.toFixed(2)}% below floor ${args.maxDrawdown}%`);
+    if (failures.length) {
+      console.error(`\n❌ Validation failed for ${args.strategyId}:`);
+      for (const f of failures) console.error(`  - ${f}`);
+      console.error(`\nstrategies/${args.strategyId}.json NOT modified.`);
+      process.exitCode = 1;
+    } else {
+      writeValidationMarker(strategyPath, strategyJson, summary, args);
+      console.log(`\n✅ Validation passed. ${strategyPath} updated.`);
+    }
+  }
   return results;
 }
 

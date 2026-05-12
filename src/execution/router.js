@@ -1,5 +1,5 @@
 import { now, json } from '../utils.js';
-import { numSetting, boolSetting } from '../db/settings.js';
+import { boolSetting } from '../db/settings.js';
 import { db } from '../db/connection.js';
 import { WSOL_MINT, LIVE_MIN_SOL_RESERVE_LAMPORTS } from '../config.js';
 import { escapeHtml, fmtSol } from '../format.js';
@@ -17,7 +17,7 @@ import { createTradeIntent } from '../db/intents.js';
 
 export async function executeLiveBuy(selectedRow, decision, batchId, rows = [], triggerCandidateId = null) {
   const strat = activeStrategy();
-  const amountLamports = Math.floor((strat.position_size_sol ?? numSetting('dry_run_buy_sol', 0.1)) * 1_000_000_000);
+  const amountLamports = Math.floor(strat.position_size_sol * 1_000_000_000);
   const balance = await liveWalletBalanceLamports();
   if (balance < amountLamports + LIVE_MIN_SOL_RESERVE_LAMPORTS) {
     throw new Error(`Insufficient SOL balance. Need ${fmtSol((amountLamports + LIVE_MIN_SOL_RESERVE_LAMPORTS) / 1_000_000_000)} SOL including reserve.`);
@@ -59,7 +59,7 @@ export async function executeConfirmedIntent(chatId, intentId) {
   const intent = intentById(intentId);
   if (!intent || intent.status !== 'pending_confirmation') return bot.sendMessage(chatId, 'Pending intent not found.');
   if (!canOpenMorePositions()) {
-    return bot.sendMessage(chatId, `Max open positions reached (${openPositionCount()}/${numSetting('max_open_positions', 3)}).`);
+    return bot.sendMessage(chatId, `Max open positions reached (${openPositionCount()}/${activeStrategy().max_open_positions}).`);
   }
   const { decision } = intent.payload;
   try {
@@ -78,7 +78,7 @@ export async function executeConfirmedIntent(chatId, intentId) {
       ].join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
     }
     const strat = activeStrategy();
-    const amountLamports = Math.floor((strat.position_size_sol ?? numSetting('dry_run_buy_sol', 0.1)) * 1_000_000_000);
+    const amountLamports = Math.floor(strat.position_size_sol * 1_000_000_000);
     const balance = await liveWalletBalanceLamports();
     if (balance < amountLamports + LIVE_MIN_SOL_RESERVE_LAMPORTS) {
       db.prepare('UPDATE trade_intents SET status = ?, updated_at_ms = ? WHERE id = ?').run('rejected_insufficient_balance', now(), intentId);

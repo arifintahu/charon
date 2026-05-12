@@ -1,18 +1,16 @@
 import { db } from './connection.js';
 import { now, json } from '../utils.js';
-import { numSetting, boolSetting, setting, activeStrategy } from './settings.js';
+import { setting, activeStrategy } from './settings.js';
 import { enqueueSync } from './outbox.js';
 
 const ENV_SNAPSHOT_KEYS = [
   'TRENDING_ENABLED', 'TRENDING_SOURCE', 'TRENDING_INTERVAL', 'TRENDING_LIMIT',
-  'TRENDING_MIN_VOLUME_USD', 'TRENDING_MIN_SWAPS', 'TRENDING_MAX_RUG_RATIO',
-  'TRENDING_MAX_BUNDLER_RATE', 'TRENDING_ALLOW_DEGEN',
+  'TRENDING_ALLOW_DEGEN',
   'SIGNAL_POLL_MS', 'GRADUATED_POLL_MS', 'GRADUATED_LOOKBACK_MS',
   'TRENDING_POLL_MS', 'TRENDING_LOOKBACK_MS', 'POSITION_CHECK_MS',
   'GMGN_ENABLED', 'GMGN_REQUEST_DELAY_MS', 'GMGN_MAX_RETRIES', 'GMGN_CACHE_TTL_MS',
   'ENABLE_LLM', 'LLM_MODEL', 'LLM_CANDIDATE_PICK_COUNT', 'LLM_CANDIDATE_MAX_AGE_MS',
-  'TRADING_MODE', 'MAX_OPEN_POSITIONS', 'LIVE_MIN_SOL_RESERVE',
-  'MIN_FEE_CLAIM_SOL', 'JUPITER_SLIPPAGE_BPS',
+  'TRADING_MODE', 'LIVE_MIN_SOL_RESERVE', 'JUPITER_SLIPPAGE_BPS',
 ];
 
 function captureEnvSnapshot() {
@@ -32,8 +30,7 @@ export function openPositionCount() {
 }
 
 export function canOpenMorePositions() {
-  const strat = activeStrategy();
-  const max = strat.max_open_positions ?? numSetting('max_open_positions', 3);
+  const max = activeStrategy().max_open_positions ?? 0;
   if (max <= 0) return true;
   return openPositionCount() < max;
 }
@@ -49,13 +46,13 @@ export function allPositions(limit = 10) {
 
 export function createDryRunPosition(candidateId, candidate, decision, reason = 'llm_buy') {
   const strat = activeStrategy();
-  const sizeSol = strat.position_size_sol ?? numSetting('dry_run_buy_sol', 0.1);
+  const sizeSol = strat.position_size_sol;
   const entryPrice = Number(candidate.metrics.priceUsd || 0) || null;
   const entryMcap = Number(candidate.metrics.marketCapUsd || candidate.metrics.graduatedMarketCapUsd || 0) || null;
-  const tp = Number(decision.suggested_tp_percent || strat.tp_percent || numSetting('default_tp_percent', 50));
-  const sl = Number(decision.suggested_sl_percent || strat.sl_percent || numSetting('default_sl_percent', -25));
-  const trailingEnabled = (strat.trailing_enabled ?? boolSetting('default_trailing_enabled', true)) ? 1 : 0;
-  const trailingPercent = strat.trailing_percent ?? numSetting('default_trailing_percent', 20);
+  const tp = Number(decision.suggested_tp_percent ?? strat.tp_percent);
+  const sl = Number(decision.suggested_sl_percent ?? strat.sl_percent);
+  const trailingEnabled = strat.trailing_enabled ? 1 : 0;
+  const trailingPercent = strat.trailing_percent;
 
   const out = db.transaction(() => {
     const existing = db.prepare(`
@@ -106,13 +103,13 @@ export function createDryRunPosition(candidateId, candidate, decision, reason = 
 
 export function createLivePosition(candidateId, candidate, decision, swap, reason = 'live_buy') {
   const strat = activeStrategy();
-  const sizeSol = strat.position_size_sol ?? numSetting('dry_run_buy_sol', 0.1);
+  const sizeSol = strat.position_size_sol;
   const entryPrice = Number(candidate.metrics.priceUsd || 0) || null;
   const entryMcap = Number(candidate.metrics.marketCapUsd || candidate.metrics.graduatedMarketCapUsd || 0) || null;
-  const tp = Number(decision.suggested_tp_percent || strat.tp_percent || numSetting('default_tp_percent', 50));
-  const sl = Number(decision.suggested_sl_percent || strat.sl_percent || numSetting('default_sl_percent', -25));
-  const trailingEnabled = (strat.trailing_enabled ?? boolSetting('default_trailing_enabled', true)) ? 1 : 0;
-  const trailingPercent = strat.trailing_percent ?? numSetting('default_trailing_percent', 20);
+  const tp = Number(decision.suggested_tp_percent ?? strat.tp_percent);
+  const sl = Number(decision.suggested_sl_percent ?? strat.sl_percent);
+  const trailingEnabled = strat.trailing_enabled ? 1 : 0;
+  const trailingPercent = strat.trailing_percent;
 
   const out = db.transaction(() => {
     const existing = db.prepare(`

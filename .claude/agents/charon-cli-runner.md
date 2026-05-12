@@ -27,8 +27,7 @@ Read-only:
 - `candidate <mint>` — last candidate for a mint (hits network for refresh)
 
 State-changing (writes to `charon.sqlite`; running bot will hot-read):
-- `strategy <id>` — switch active strategy (`sniper`, `dip_buy`, `smart_money`, `degen`)
-- `stratset <id> <key> <value>` — set a strategy field
+- `resetstrategies` (dry-run diff) / `resetstrategies confirm` (apply) — re-sync the SQLite `strategies` table from `strategies/*.json`. To change a strategy field, edit the JSON file then run this. (`stratset` no longer exists — JSON files are the only source of truth.)
 - `setfilter <name> <value>` — set a global filter
 - `walletadd <label> <address>` / `walletremove <label>` — manage saved wallets
 - `learn <window>` — run a learning report (e.g. `learn 12h`)
@@ -42,7 +41,8 @@ State-changing (writes to `charon.sqlite`; running bot will hot-read):
 
 ## Guardrails
 
-- Never run `node scripts/cmd.js stratset|setfilter|walletadd|walletremove` without the caller having authorised the specific change. State changes are live — the running bot will pick them up.
+- Never run `node scripts/cmd.js resetstrategies confirm|setfilter|walletadd|walletremove` without the caller having authorised the specific change. State changes are live — the running bot will pick them up.
+- Never edit files in `strategies/` without explicit authorisation; that folder is the source of truth for active trading config.
 - Network-hitting commands (`pnl`, `candidate <mint>`, `learn`) spend real API quota. Confirm with the caller before running them in bulk.
 - If a command throws, capture stderr and report it; do not retry blindly.
-- The CLI doesn't support inline-keyboard callbacks. If a scenario requires clicking a button, use the equivalent text command (e.g. `stratset` instead of clicking a TP preset).
+- The CLI doesn't support inline-keyboard callbacks. To change strategy params, edit `strategies/<id>.json` then run `resetstrategies confirm`.

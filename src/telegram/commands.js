@@ -4,7 +4,8 @@ import { now, json } from '../utils.js';
 import { escapeHtml, fmtPct } from '../format.js';
 import { db } from '../db/connection.js';
 import { enqueueSync } from '../db/outbox.js';
-import { numSetting, boolSetting, setSetting, activeStrategy, setActiveStrategy, strategyById, updateStrategyConfig } from '../db/settings.js';
+import { numSetting, boolSetting, setSetting, activeStrategy, allStrategies, invalidateStrategyCache } from '../db/settings.js';
+import { loadStrategiesFromDisk, syncStrategiesToDb, diffStrategies } from '../db/strategySeeds.js';
 import { candidateById, latestCandidateByMint, updateCandidateStatus } from '../db/candidates.js';
 import { storeDecision, logDecisionEvent } from '../db/decisions.js';
 import {
@@ -40,41 +41,10 @@ export async function handleMessage(msg) {
   if (text.startsWith('/positions')) return sendPositions(chatId);
   if (text.startsWith('/filters')) return bot.sendMessage(chatId, filtersText(), { parse_mode: 'HTML' });
   if (text.startsWith('/strategy')) {
-    const parts = text.split(/\s+/);
-    const id = parts[1];
-    if (!id) {
-      return bot.sendMessage(chatId, strategyMenuText(), { parse_mode: 'HTML', ...strategyKeyboard() });
-    }
-    const valid = ['sniper', 'dip_buy', 'smart_money', 'degen'];
-    if (!valid.includes(id)) {
-      return bot.sendMessage(chatId, `Unknown strategy. Valid: ${valid.join(', ')}`);
-    }
-    setActiveStrategy(id);
     return bot.sendMessage(chatId, strategyMenuText(), { parse_mode: 'HTML', ...strategyKeyboard() });
   }
-  if (text.startsWith('/stratset')) {
-    const parts = text.split(/\s+/);
-    const [, id, key, ...rest] = parts;
-    const value = rest.join(' ');
-    if (!id || !key || !value) {
-      return bot.sendMessage(chatId, 'Usage: /stratset <strategy_id> <key> <value>\n\nExample: /stratset sniper tp_percent 75\n\nKeys: tp_percent, sl_percent, position_size_sol, max_open_positions, min_mcap_usd, max_mcap_usd, min_holders, trailing_enabled, trailing_percent, partial_tp, partial_tp_at_percent, partial_tp_sell_percent, max_hold_ms, use_llm, llm_min_confidence, min_source_count, require_fee_claim, min_fee_claim_sol, min_gmgn_total_fee_sol, max_ath_distance_pct');
-    }
-    const strat = strategyById(id);
-    if (!strat) return bot.sendMessage(chatId, `Strategy "${id}" not found.`);
-    const numKeys = new Set(['tp_percent', 'sl_percent', 'position_size_sol', 'max_open_positions', 'min_mcap_usd', 'max_mcap_usd', 'min_holders', 'max_top20_holder_percent', 'trailing_percent', 'partial_tp_at_percent', 'partial_tp_sell_percent', 'max_hold_ms', 'llm_min_confidence', 'min_source_count', 'min_fee_claim_sol', 'min_gmgn_total_fee_sol', 'max_ath_distance_pct', 'token_age_max_ms', 'trending_min_volume_usd', 'trending_min_swaps', 'trending_max_rug_ratio', 'trending_max_bundler_rate', 'min_saved_wallet_holders', 'min_graduated_volume_usd']);
-    const boolKeys = new Set(['trailing_enabled', 'partial_tp', 'use_llm', 'require_fee_claim']);
-    const newConfig = { ...strat };
-    delete newConfig.id;
-    delete newConfig.name;
-    if (numKeys.has(key)) {
-      newConfig[key] = Number(value);
-    } else if (boolKeys.has(key)) {
-      newConfig[key] = value === 'true' || value === '1' || value === 'yes';
-    } else {
-      newConfig[key] = value;
-    }
-    updateStrategyConfig(id, newConfig);
-    return bot.sendMessage(chatId, `Updated ${id}.${key} = ${value}\n\n${strategyMenuText()}`, { parse_mode: 'HTML' });
+  if (text.startsWith('/resetstrategies')) {
+    return handleResetStrategies(chatId, text);
   }
   if (text.startsWith('/pnl')) return sendPnl(chatId);
   if (text.startsWith('/learn')) {
@@ -108,7 +78,6 @@ export async function handleMessage(msg) {
   if (text.startsWith('/setfilter')) {
     const { key, value } = parseSetFilter(text);
     const valid = new Set([
-      'min_fee_claim_sol',
       'min_mcap_usd',
       'max_mcap_usd',
       'min_gmgn_total_fee_sol',
@@ -121,20 +90,11 @@ export async function handleMessage(msg) {
       'trending_interval',
       'trending_limit',
       'trending_order_by',
-      'trending_min_volume_usd',
-      'trending_min_swaps',
-      'trending_max_rug_ratio',
-      'trending_max_bundler_rate',
       'trading_mode',
       'llm_min_confidence',
       'llm_candidate_pick_count',
       'llm_candidate_max_age_ms',
-      'max_open_positions',
       'dry_run_buy_sol',
-      'default_tp_percent',
-      'default_sl_percent',
-      'default_trailing_enabled',
-      'default_trailing_percent',
     ]);
     if (!valid.has(key) || value == null) {
       return bot.sendMessage(chatId, `Usage: /setfilter &lt;name&gt; &lt;value&gt;\n\n${filtersText()}`, { parse_mode: 'HTML' });
@@ -142,6 +102,34 @@ export async function handleMessage(msg) {
     setSetting(key, value === 'off' ? '0' : value);
     return bot.sendMessage(chatId, filtersText(), { parse_mode: 'HTML' });
   }
+}
+
+async function handleResetStrategies(chatId, text) {
+  const parts = text.split(/\s+/);
+  const confirm = parts[1] === 'confirm';
+  let fromDisk;
+  try {
+    fromDisk = loadStrategiesFromDisk();
+  } catch (err) {
+    return bot.sendMessage(chatId, `❌ Failed to load strategies from disk:\n${escapeHtml(err.message)}`, { parse_mode: 'HTML' });
+  }
+  const fromDb = allStrategies();
+  const diff = diffStrategies(fromDb, fromDisk);
+  const lines = ['🔄 <b>Reset strategies</b>'];
+  if (!diff.added.length && !diff.removed.length && !diff.changed.length) {
+    lines.push('', 'SQLite already matches strategies/ — no changes.');
+    return bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' });
+  }
+  for (const id of diff.added) lines.push(`+ ${id} (insert)`);
+  for (const id of diff.removed) lines.push(`- ${id} (delete)`);
+  for (const c of diff.changed) lines.push(`~ ${c.id}: ${c.fields.length} field(s)\n   ${c.fields.map(escapeHtml).join('\n   ')}`);
+  if (!confirm) {
+    lines.push('', 'Run <code>/resetstrategies confirm</code> to apply.');
+    return bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' });
+  }
+  syncStrategiesToDb(db, fromDisk, { invalidateCache: invalidateStrategyCache });
+  lines.push('', '✅ Applied.');
+  return bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'HTML' });
 }
 
 export async function sendCandidate(chatId, id) {
@@ -244,8 +232,8 @@ export async function toggleTrailing(chatId, id, query = null) {
 export function setupTelegram() {
   bot.setMyCommands([
     { command: 'menu', description: 'Open Charon menu' },
-    { command: 'strategy', description: 'Show/switch strategy' },
-    { command: 'stratset', description: 'Set strategy config (stratset id key value)' },
+    { command: 'strategy', description: 'Show strategy menu' },
+    { command: 'resetstrategies', description: 'Re-sync strategies table from strategies/*.json' },
     { command: 'positions', description: 'Show dry-run positions' },
     { command: 'candidate', description: 'Show candidate by mint' },
     { command: 'filters', description: 'Show filters' },

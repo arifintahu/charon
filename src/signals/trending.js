@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { JUPITER_API_KEY, JSON_HEADERS, TRENDING_LOOKBACK_MS } from '../config.js';
 import { now, json } from '../utils.js';
-import { numSetting, boolSetting, setting } from '../db/settings.js';
+import { numSetting, boolSetting, setting, activeStrategy } from '../db/settings.js';
 import { db } from '../db/connection.js';
 import { enqueueSync } from '../db/outbox.js';
 import { gmgnBackoffActive, setGmgnBackoff, gmgnFetch, normalizedTrendingRows } from '../enrichment/gmgn.js';
@@ -27,10 +27,11 @@ export function trendingSignalPass(row) {
   const swaps = Number(row?.swaps ?? 0);
   const rugRatio = Number(row?.rug_ratio ?? 0);
   const bundlerRate = Number(row?.bundler_rate ?? 0);
-  const minVolume = numSetting('trending_min_volume_usd', 0);
-  const minSwaps = numSetting('trending_min_swaps', 0);
-  const maxRugRatio = numSetting('trending_max_rug_ratio', 0.3);
-  const maxBundlerRate = numSetting('trending_max_bundler_rate', 0.5);
+  const strat = activeStrategy();
+  const minVolume = strat.trending_min_volume_usd ?? 0;
+  const minSwaps = strat.trending_min_swaps ?? 0;
+  const maxRugRatio = strat.trending_max_rug_ratio ?? 0;
+  const maxBundlerRate = strat.trending_max_bundler_rate ?? 0;
   if (minVolume > 0 && (!Number.isFinite(volume) || volume < minVolume)) return false;
   if (minSwaps > 0 && (!Number.isFinite(swaps) || swaps < minSwaps)) return false;
   if (maxRugRatio > 0 && Number.isFinite(rugRatio) && rugRatio > maxRugRatio) return false;

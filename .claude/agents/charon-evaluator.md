@@ -133,7 +133,7 @@ If a window has fewer than 10 closed trades, do not emit recommendations. Instea
 
 ## Guardrails
 
-- Never run state-changing CLI commands (`stratset`, `setfilter`, `strategy <id>`, `walletadd`, `walletremove`).
+- Never run state-changing CLI commands (`setfilter`, `resetstrategies confirm`, `walletadd`, `walletremove`) and never edit `strategies/*.json`.
 - Do not write to `charon.sqlite`. `scripts/sql.js` already enforces this; do not try workarounds.
 - Recommendations are advisory text only. Never auto-apply config changes.
 - If a SQL query errors, report the error and continue with other queries — don't bail the whole window.

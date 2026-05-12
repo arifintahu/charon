@@ -77,6 +77,6 @@ If the command mutates state, follow up with `node scripts/cmd.js filters` or `/
 ## Reference
 
 - Example single-arg with persistence: `/walletadd` in `src/telegram/commands.js`
-- Example multi-arg with type coercion: `/stratset` in `src/telegram/commands.js`
+- Example dispatched sub-handler with optional confirm flag: `/resetstrategies` → `handleResetStrategies` in `src/telegram/commands.js`
 - Example calling a sub-handler: `/learn` → `runLearning` in `src/learning/commands.js`
 - Example bouncing to a callback path: `/wallets` → `handleCallback({ data: 'menu:wallets', ... })`

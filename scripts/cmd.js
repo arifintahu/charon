@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Headless driver for Charon Telegram commands.
 //   node scripts/cmd.js positions
-//   node scripts/cmd.js stratset sniper tp_percent 75
+//   node scripts/cmd.js strategy
+//   node scripts/cmd.js resetstrategies          (dry-run diff)
+//   node scripts/cmd.js resetstrategies confirm  (apply)
 //   node scripts/cmd.js candidate <mint>
 // Setting CHARON_CLI=1 makes bot.js skip polling; bot.sendMessage / editMessageText
 // are stubbed below so handler output prints to stdout instead of Telegram.
@@ -58,7 +60,8 @@ if (!argv.length) {
   console.error('Examples:');
   console.error('  node scripts/cmd.js positions');
   console.error('  node scripts/cmd.js strategy');
-  console.error('  node scripts/cmd.js stratset sniper tp_percent 75');
+  console.error('  node scripts/cmd.js resetstrategies');
+  console.error('  node scripts/cmd.js resetstrategies confirm');
   console.error('  node scripts/cmd.js candidate <mint>');
   process.exit(2);
 }
