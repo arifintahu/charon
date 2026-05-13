@@ -41,16 +41,17 @@ export function loadStrategiesFromDisk(dir = DEFAULT_DIR) {
       enabledCount += 1;
       const validation = raw.validation;
       if (!validation || typeof validation !== 'object') {
-        throw new Error(`${raw.id}: enabled strategy must have a "validation" block. Run: npm run backtest -- --strategy ${raw.id} --from 7d --validate-strategy`);
-      }
-      const validatedAt = Number(validation.validated_at_ms);
-      if (!Number.isFinite(validatedAt) || validatedAt <= 0) {
-        throw new Error(`${raw.id}: validation.validated_at_ms must be a positive number`);
-      }
-      const ageMs = Date.now() - validatedAt;
-      if (ageMs > MAX_VALIDATION_AGE_MS) {
-        const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
-        throw new Error(`${raw.id}: validation is ${ageDays}d old (max ${Math.floor(MAX_VALIDATION_AGE_MS / (24 * 60 * 60 * 1000))}d). Re-run: npm run backtest -- --strategy ${raw.id} --from 7d --validate-strategy`);
+        log.warn(`${raw.id}: enabled without a "validation" block. Run: npm run backtest -- --strategy ${raw.id} --from 7d --validate-strategy`);
+      } else {
+        const validatedAt = Number(validation.validated_at_ms);
+        if (!Number.isFinite(validatedAt) || validatedAt <= 0) {
+          throw new Error(`${raw.id}: validation.validated_at_ms must be a positive number`);
+        }
+        const ageMs = Date.now() - validatedAt;
+        if (ageMs > MAX_VALIDATION_AGE_MS) {
+          const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+          log.warn(`${raw.id}: validation is ${ageDays}d old (max ${Math.floor(MAX_VALIDATION_AGE_MS / (24 * 60 * 60 * 1000))}d). Re-run: npm run backtest -- --strategy ${raw.id} --from 7d --validate-strategy`);
+        }
       }
     }
 
