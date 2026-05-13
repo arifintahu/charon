@@ -39,6 +39,12 @@ export function openPositionCount() {
   return db.prepare('SELECT COUNT(*) AS count FROM dry_run_positions WHERE status = ?').get('open').count;
 }
 
+export function hasOpenPositionForMint(mint) {
+  if (!mint) return false;
+  const row = db.prepare(`SELECT id FROM dry_run_positions WHERE mint = ? AND status = 'open' LIMIT 1`).get(mint);
+  return row ? row.id : null;
+}
+
 export function canOpenMorePositions() {
   const max = activeStrategy().max_open_positions ?? 0;
   if (max <= 0) return true;

@@ -5,7 +5,7 @@ import { storeDecision, storeBatchDecision, logDecisionEvent } from '../db/decis
 import { buildCandidate } from './candidateBuilder.js';
 import { decideCandidateBatch } from './llm.js';
 import { activeStrategy } from '../db/settings.js';
-import { createDryRunPosition, canOpenMorePositions, openPositionCount, tradingMode } from '../db/positions.js';
+import { createDryRunPosition, canOpenMorePositions, openPositionCount, hasOpenPositionForMint, tradingMode } from '../db/positions.js';
 import { sendBatchReveal, sendTelegram, sendPositionOpen, sendTradeIntent } from '../telegram/send.js';
 import { candidateSummary } from '../telegram/format.js';
 import { createTradeIntent } from '../db/intents.js';
@@ -129,6 +129,30 @@ export async function handleApprovedBuy(selectedRow, decision, batchId, rows = [
   const mode = tradingMode();
   const freshSelectedRow = await refreshCandidateForExecution(selectedRow);
   const executionRows = rows.map(row => row.id === freshSelectedRow.id ? freshSelectedRow : row);
+
+  const dupPositionId = hasOpenPositionForMint(freshSelectedRow.candidate.token?.mint);
+  if (dupPositionId) {
+    updateCandidateStatus(freshSelectedRow.id, 'duplicate_open_position');
+    logDecisionEvent({
+      batchId,
+      triggerCandidateId,
+      selectedRow: freshSelectedRow,
+      rows: executionRows,
+      decision,
+      mode,
+      action: 'entry_rejected_duplicate_position',
+      guardrails: { existingPositionId: dupPositionId },
+    });
+    await sendTelegram([
+      '🛑 <b>Skipped — position already open</b>',
+      '',
+      candidateSummary(freshSelectedRow.candidate, decision),
+      '',
+      `Already holding open position #${dupPositionId} for this mint.`,
+    ].join('\n'));
+    return;
+  }
+
   if (!freshSelectedRow.candidate.filters?.passed) {
     updateCandidateStatus(freshSelectedRow.id, 'stale_rejected');
     logDecisionEvent({

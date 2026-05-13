@@ -4,7 +4,7 @@ import { WSOL_MINT, LIVE_MIN_SOL_RESERVE_LAMPORTS } from '../config.js';
 import { escapeHtml, fmtSol } from '../format.js';
 import { executeJupiterSwap, liveWalletBalanceLamports, fetchLiveTokenBalance } from '../liveExecutor.js';
 import { activeStrategy } from '../db/settings.js';
-import { createLivePosition, canOpenMorePositions, openPositionCount } from '../db/positions.js';
+import { createLivePosition, canOpenMorePositions, openPositionCount, hasOpenPositionForMint } from '../db/positions.js';
 import { intentById } from '../db/intents.js';
 import { logDecisionEvent } from '../db/decisions.js';
 import { refreshCandidateForExecution } from './positions.js';
@@ -73,6 +73,11 @@ export async function executeConfirmedIntent(chatId, intentId) {
         '',
         `Failures: ${escapeHtml((freshRow.candidate.filters?.failures || []).join('; ') || 'fresh execution guard failed')}`,
       ].join('\n'), { parse_mode: 'HTML', disable_web_page_preview: true });
+    }
+    const dupPositionId = hasOpenPositionForMint(freshRow.candidate.token?.mint);
+    if (dupPositionId) {
+      db.prepare('UPDATE trade_intents SET status = ?, updated_at_ms = ? WHERE id = ?').run('rejected_duplicate_position', now(), intentId);
+      return bot.sendMessage(chatId, `🛑 Skipped — already holding open position #${dupPositionId} for this mint.`, { parse_mode: 'HTML' });
     }
     const strat = activeStrategy();
     const amountLamports = Math.floor(strat.position_size_sol * 1_000_000_000);

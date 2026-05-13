@@ -18,7 +18,7 @@ import {
 import { sendBatch, sendPositionOpen } from './send.js';
 import { candidateById, updateCandidateStatus } from '../db/candidates.js';
 import { storeDecision, logDecisionEvent } from '../db/decisions.js';
-import { createDryRunPosition, canOpenMorePositions, openPositionCount, tradingMode } from '../db/positions.js';
+import { createDryRunPosition, canOpenMorePositions, openPositionCount, hasOpenPositionForMint, tradingMode } from '../db/positions.js';
 import { executeLiveBuy, executeConfirmedIntent, rejectIntent } from '../execution/router.js';
 import { sendCandidate, sendPosition, closePosition, updatePositionRule, toggleTrailing } from './commands.js';
 import { requestNumericFilterInput } from './input.js';
@@ -85,6 +85,10 @@ export async function handleCallback(query) {
     if (!row) return bot.sendMessage(chatId, 'Candidate not found.');
     if (!canOpenMorePositions()) {
       return bot.sendMessage(chatId, `Max open positions reached (${openPositionCount()}/${activeStrategy().max_open_positions}). Close one first or raise the limit.`);
+    }
+    const dupPositionId = hasOpenPositionForMint(row.mint);
+    if (dupPositionId) {
+      return bot.sendMessage(chatId, `Already holding open position #${dupPositionId} for this mint.`);
     }
     const candidate = row.candidate;
     const strat = activeStrategy();
