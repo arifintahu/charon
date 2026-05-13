@@ -5,20 +5,6 @@ CREATE TABLE IF NOT EXISTS bots (
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS signal_events (
-  machine_id UUID NOT NULL,
-  local_id BIGINT NOT NULL,
-  mint TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  at_ms BIGINT NOT NULL,
-  source TEXT NOT NULL,
-  payload JSONB NOT NULL,
-  synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (machine_id, local_id)
-);
-CREATE INDEX IF NOT EXISTS idx_signal_events_mint ON signal_events (mint);
-CREATE INDEX IF NOT EXISTS idx_signal_events_at_ms ON signal_events (at_ms);
-
 CREATE TABLE IF NOT EXISTS candidates (
   machine_id UUID NOT NULL,
   local_id BIGINT NOT NULL,

@@ -146,14 +146,6 @@ export function initDb() {
       batch_json TEXT NOT NULL,
       execution_json TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS signal_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      mint TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      at_ms INTEGER NOT NULL,
-      source TEXT NOT NULL,
-      payload_json TEXT NOT NULL
-    );
     CREATE TABLE IF NOT EXISTS learning_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created_at_ms INTEGER NOT NULL,
@@ -207,7 +199,6 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_positions_status ON dry_run_positions(status);
     CREATE INDEX IF NOT EXISTS idx_trade_intents_status ON trade_intents(status);
     CREATE INDEX IF NOT EXISTS idx_decision_logs_mint ON decision_logs(selected_mint);
-    CREATE INDEX IF NOT EXISTS idx_signal_events_mint ON signal_events(mint);
     CREATE INDEX IF NOT EXISTS idx_learning_lessons_status ON learning_lessons(status, created_at_ms);
     CREATE INDEX IF NOT EXISTS idx_outbox_pending ON sync_outbox(next_attempt_at_ms) WHERE synced_at_ms IS NULL;
   `);

@@ -1,8 +1,7 @@
 import axios from 'axios';
 import { JUPITER_API_KEY, JSON_HEADERS, TRENDING_LOOKBACK_MS } from '../config.js';
-import { now, json } from '../utils.js';
+import { now } from '../utils.js';
 import { numSetting, boolSetting, setting, activeStrategy } from '../db/settings.js';
-import { db } from '../db/connection.js';
 import { gmgnBackoffActive, setGmgnBackoff, gmgnFetch, normalizedTrendingRows } from '../enrichment/gmgn.js';
 import { normalizeJupiterTrendingRow } from '../enrichment/jupiter.js';
 import { logger } from '../log.js';
@@ -12,13 +11,6 @@ let degenHandler = null;
 
 export function setDegenHandler(fn) {
   degenHandler = fn;
-}
-
-export function storeSignalEvent(mint, kind, source, payload) {
-  db.prepare(`
-    INSERT INTO signal_events (mint, kind, at_ms, source, payload_json)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(mint, kind, now(), source, json(payload));
 }
 
 export function trendingSignalPass(row) {
@@ -102,7 +94,6 @@ export async function fetchGmgnTrending() {
       const token = { ...row, address: mint, interval, rank: index + 1, seenAt };
       trending.set(mint, token);
       tracked += 1;
-      storeSignalEvent(mint, 'trending', token.source || source, token);
       if (degenHandler) await degenHandler(mint, token);
     }
     logger(`trending:${source}`).info(`loaded ${rows.length}, accepted ${tracked}, tracking ${trending.size}`);

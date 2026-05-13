@@ -221,7 +221,7 @@ POSTGRES_SYNC_INTERVAL_MS=5000
 POSTGRES_SYNC_BATCH_SIZE=100
 ```
 
-Tables synced: `signal_events`, `candidates`, `llm_decisions`, `llm_batches`, `decision_logs`, `dry_run_positions`, `dry_run_trades`, `learning_lessons`. Plus `historical_candles` (shared across machines, populated by the backtester).
+Tables synced: `candidates`, `llm_decisions`, `llm_batches`, `decision_logs`, `dry_run_positions`, `dry_run_trades`, `learning_lessons`. Plus `historical_candles` (shared across machines, populated by the backtester).
 
 ## Backtesting
 

@@ -58,7 +58,7 @@ Position monitor (`monitorPositions`) runs in both modes on `POSITION_CHECK_MS`.
 - `docker-compose.yml` runs Postgres 17 locally. `npm run pg:up | pg:migrate | pg:backfill | pg:psql | pg:down`.
 - Per-row `machine_id` (auto-generated UUID, persisted to `settings.machine_id`) partitions data across bot instances.
 - Outbox pattern: writes to SQLite append a row to `sync_outbox`; `src/sync/postgresSink.js` drains it every `POSTGRES_SYNC_INTERVAL_MS` (default 5s) in FIFO batches of `POSTGRES_SYNC_BATCH_SIZE` (default 100), idempotent via `ON CONFLICT (machine_id, local_id) DO UPDATE`.
-- Tables synced: `signal_events`, `candidates`, `llm_decisions`, `llm_batches`, `decision_logs`, `dry_run_positions`, `dry_run_trades`, `learning_lessons`. **Not synced**: `settings`, `strategies`, `saved_wallets`, `price_alerts`, `trade_intents`, `tp_sl_rules` (per-machine live state).
+- Tables synced: `candidates`, `llm_decisions`, `llm_batches`, `decision_logs`, `dry_run_positions`, `dry_run_trades`, `learning_lessons`. **Not synced**: `settings`, `strategies`, `saved_wallets`, `price_alerts`, `trade_intents`, `tp_sl_rules` (per-machine live state).
 - Failure handling: outbox rows back off exponentially on Postgres errors. Live trading is unaffected by remote outages.
 - JSONB columns are stringified via `JSON.stringify` before parameter binding — `pg` coerces JS arrays into Postgres arrays otherwise.
 

@@ -2,14 +2,12 @@ import WebSocket from 'ws';
 import { PUMP_PROGRAM, PUMP_AMM, DISC_DIST_FEES, SOLANA_WS_URL } from '../config.js';
 import { now, pruneSeen, lamToSol, discMatch, parseDistFees } from '../utils.js';
 import { activeStrategy, boolSetting } from '../db/settings.js';
-import { storeSignalEvent } from './trending.js';
 import { logger } from '../log.js';
 
 const feeLog = logger('fee');
 const wsLog = logger('ws');
 import { graduated } from './graduated.js';
 import { trending } from './trending.js';
-import { buildFeeSnapshot } from '../pipeline/candidateBuilder.js';
 
 export const seenFeeClaims = new Map();
 let candidateHandler = null;
@@ -29,7 +27,6 @@ export async function handleFeeClaim(fee, signature) {
   pruneSeen(seenFeeClaims, 10 * 60 * 1000);
   if (seenFeeClaims.has(key)) return;
   seenFeeClaims.set(key, now());
-  storeSignalEvent(fee.mint, 'fee_claim', 'pump_logs', { signature, fee: buildFeeSnapshot(fee, signature) });
   const route = graduatedCoin && trendingToken
     ? 'fee_graduated_trending'
     : graduatedCoin

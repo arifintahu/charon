@@ -1,4 +1,4 @@
-import { POSTGRES_URL, POSTGRES_SYNC_INTERVAL_MS, POSTGRES_SYNC_BATCH_SIZE, CHARON_MACHINE_LABEL } from '../config.js';
+import { POSTGRES_SYNC_INTERVAL_MS, POSTGRES_SYNC_BATCH_SIZE, CHARON_MACHINE_LABEL } from '../config.js';
 import { db } from '../db/connection.js';
 import { pgPool, pgQuery, pgPing, postgresEnabled, closePostgres } from '../db/postgres.js';
 import { machineId } from '../db/machineId.js';
@@ -145,7 +145,7 @@ const TABLES = {
         execution_mode = EXCLUDED.execution_mode,
         entry_signature = EXCLUDED.entry_signature, exit_signature = EXCLUDED.exit_signature,
         token_amount_raw = EXCLUDED.token_amount_raw, strategy_id = EXCLUDED.strategy_id,
-        partial_tp_done = EXCLUDED.partial_tp_done, snapshot = EXCLUDED.snapshot,
+        partial_tp_done = EXCLUDED.partial_tp_done,
         synced_at = now()
     `,
   },
@@ -165,7 +165,7 @@ const TABLES = {
         side = EXCLUDED.side, at_ms = EXCLUDED.at_ms,
         price = EXCLUDED.price, mcap = EXCLUDED.mcap, size_sol = EXCLUDED.size_sol,
         token_amount_est = EXCLUDED.token_amount_est, reason = EXCLUDED.reason,
-        payload = EXCLUDED.payload, synced_at = now()
+        synced_at = now()
     `,
   },
   learning_lessons: {

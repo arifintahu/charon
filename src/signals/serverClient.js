@@ -1,8 +1,8 @@
 import axios from 'axios';
-import { SIGNAL_SERVER_URL, SIGNAL_SERVER_KEY, SIGNAL_POLL_MS } from '../config.js';
+import { SIGNAL_SERVER_URL, SIGNAL_SERVER_KEY } from '../config.js';
 import { now } from '../utils.js';
 import { activeStrategy } from '../db/settings.js';
-import { storeSignalEvent, trendingSignalPass, trending } from './trending.js';
+import { trending } from './trending.js';
 import { graduated } from './graduated.js';
 import { logger } from '../log.js';
 
@@ -93,12 +93,6 @@ export async function fetchServerSignals() {
       const key = `signal:${mint}`;
       if (seenSignals.has(key)) { processed++; continue; }
       seenSignals.set(key, now());
-
-      // Store signal events
-      for (const source of signal.sources) {
-        const kind = source.includes('trending') ? 'trending' : source.includes('fee') ? 'fee_claim' : 'graduated';
-        storeSignalEvent(mint, kind, source, signal);
-      }
 
       const graduatedCoin = graduated.get(mint) || signal.graduated || null;
       const trendingToken = trending.get(mint) || null;

@@ -21,6 +21,16 @@ function captureEnvSnapshot() {
   return out;
 }
 
+function summariseSwap(swap) {
+  if (!swap) return null;
+  return {
+    signature: swap.signature ?? null,
+    inputAmount: swap.inputAmount ?? null,
+    outputAmount: swap.outputAmount ?? null,
+    slippageBps: swap.slippageBps ?? null,
+  };
+}
+
 export function openPositions() {
   return db.prepare('SELECT * FROM dry_run_positions WHERE status = ? ORDER BY opened_at_ms DESC').all('open');
 }
@@ -143,7 +153,7 @@ export function createLivePosition(candidateId, candidate, decision, swap, reaso
       swap.signature,
       swap.outputAmount || null,
       strat.id,
-      json({ candidate, decision, reason, swap, strategy: strat, env: captureEnvSnapshot() }),
+      json({ candidate, decision, reason, swap: summariseSwap(swap), strategy: strat, env: captureEnvSnapshot() }),
     );
     const positionId = Number(result.lastInsertRowid);
     const tradeRes = db.prepare(`
