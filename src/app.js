@@ -1,5 +1,5 @@
 import { setDefaultResultOrder } from 'node:dns';
-import { APP_NAME, SIGNAL_SERVER_URL, SIGNAL_POLL_MS, GRADUATED_POLL_MS, TRENDING_POLL_MS, POSITION_CHECK_MS, validateConfig } from './config.js';
+import { APP_NAME, SIGNAL_SERVER_URL, SIGNAL_POLL_MS, GRADUATED_POLL_MS, TRENDING_POLL_MS, POSITION_CHECK_MS, FEE_CLAIM_WS_ENABLED, validateConfig } from './config.js';
 import { initLiveExecution } from './liveExecutor.js';
 import { setupTelegram } from './telegram/commands.js';
 import { monitorPositions } from './execution/positions.js';
@@ -50,19 +50,23 @@ export async function startCharon() {
     // ── Standalone mode: direct polling (legacy) ───────────────────────────
     const { fetchGraduatedCoins } = await import('./signals/graduated.js');
     const { fetchGmgnTrending, setDegenHandler } = await import('./signals/trending.js');
-    const { startWebsocket, setCandidateHandler } = await import('./signals/feeClaim.js');
 
     setDegenHandler(maybeProcessDegenCandidate);
-    setCandidateHandler(processCandidateFromSignals);
 
     await fetchGraduatedCoins().catch(error => graduatedLog.warn(`initial fetch failed: ${error.message}`));
     await fetchGmgnTrending().catch(error => trendingLog.warn(`initial fetch failed: ${error.message}`));
 
     setInterval(() => fetchGraduatedCoins().catch(error => graduatedLog.warn(error.message)), GRADUATED_POLL_MS);
     setInterval(() => fetchGmgnTrending().catch(error => trendingLog.warn(error.message)), TRENDING_POLL_MS);
-    startWebsocket();
 
-    botLog.info(`${APP_NAME} started (standalone mode)`);
+    if (FEE_CLAIM_WS_ENABLED) {
+      const { startWebsocket, setCandidateHandler } = await import('./signals/feeClaim.js');
+      setCandidateHandler(processCandidateFromSignals);
+      startWebsocket();
+      botLog.info(`${APP_NAME} started (standalone mode, fee-claim WS on)`);
+    } else {
+      botLog.info(`${APP_NAME} started (standalone mode, fee-claim WS disabled — degen-only candidate flow)`);
+    }
   }
 
   // Position monitoring runs in both modes
