@@ -10,12 +10,13 @@ flowchart TD
   StratGates -->|dip_buy wait_for_dip| PriceAlert[store/monitor dip alerts]
   PriceAlert --> Trigger
 
-  Mode -- No --> FeeWS[feeClaim websocket logs]
-  Mode -- No --> GradPoll[poll graduated]
-  Mode -- No --> TrendPoll[poll trending]
+  Mode -- No --> WSGate{FEE_CLAIM_WS_ENABLED?}
+  WSGate -- Yes --> FeeWS[feeClaim websocket logs]
+  Mode -- No --> GradPoll[poll graduated -> map]
+  Mode -- No --> TrendPoll[poll trending -> map + degen handler]
   FeeWS --> Trigger
-  GradPoll --> Trigger
   TrendPoll --> Trigger
+  GradPoll -. enrich .-> Trigger
 
   Trigger --> Build[build + enrich candidate]
   Build --> Filters{filters pass?}

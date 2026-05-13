@@ -30,7 +30,8 @@ Canonical pipeline diagram: `docs/workflow.mmd`.
 Selected at boot in `src/app.js`:
 
 - **Server mode** (`SIGNAL_SERVER_URL` set): polls signal server every `SIGNAL_POLL_MS`; price monitor handles dip alerts every 10s.
-- **Standalone mode** (legacy): fee-claim websocket + graduated poll (`GRADUATED_POLL_MS`) + trending poll (`TRENDING_POLL_MS`).
+- **Standalone mode** (legacy): fee-claim websocket + graduated poll (`GRADUATED_POLL_MS`) + trending poll (`TRENDING_POLL_MS`). The fee-claim WS gates `sniper` / `smart_money` / `dip_buy` candidate triggers; `degen` is driven by the trending poller alone.
+  - `FEE_CLAIM_WS_ENABLED=false` (default `true`) skips the WS entirely — useful on free Solana RPC tiers where `logsSubscribe` on the Pump programs burns credits fast. With it off, only the `degen` strategy produces candidates. Graduated/trending HTTP pollers continue regardless and still enrich degen candidates with graduation context.
 
 Position monitor (`monitorPositions`) runs in both modes on `POSITION_CHECK_MS`.
 
