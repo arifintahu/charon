@@ -13,7 +13,7 @@ The caller passes one or more time windows. Accepted forms: `1d`, `3d`, `7d`, `3
 ## Tools
 
 - `node scripts/cmd.js /learn <window>` — existing learning summary (route breakdown, win rate, LLM stats, lessons). One LLM call per invocation, so don't loop carelessly.
-- `node scripts/sql.js "<SELECT ...>"` — read-only SQL. Use for everything `/learn` doesn't cover.
+- `node scripts/pg-sql.js "<SELECT ...>"` — read-only SQL against Postgres (`POSTGRES_URL` required). Use for everything `/learn` doesn't cover.
 
 ## For each window, do this
 
@@ -22,10 +22,10 @@ The caller passes one or more time windows. Accepted forms: `1d`, `3d`, `7d`, `3
 ```
 SELECT
   COUNT(*) AS closed,
-  ROUND(AVG(pnl_percent), 2) AS avg_pnl_pct,
-  ROUND(100.0 * SUM(CASE WHEN pnl_percent >= 0 THEN 1 ELSE 0 END) / COUNT(*), 1) AS win_rate
+  ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl_pct,
+  ROUND((100.0 * SUM(CASE WHEN pnl_percent >= 0 THEN 1 ELSE 0 END) / COUNT(*))::NUMERIC, 1) AS win_rate
 FROM dry_run_positions
-WHERE status = 'closed' AND closed_at_ms >= (CAST(strftime('%s','now') AS INTEGER) - <SECONDS>) * 1000;
+WHERE status = 'closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000;
 ```
 
 Replace `<SECONDS>` for the window (e.g. `1d` → `86400`).
@@ -35,10 +35,10 @@ Replace `<SECONDS>` for the window (e.g. `1d` → `86400`).
 ```
 SELECT strategy_id,
   COUNT(*) AS n,
-  ROUND(AVG(pnl_percent), 2) AS avg_pnl,
+  ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl,
   SUM(CASE WHEN pnl_percent >= 0 THEN 1 ELSE 0 END) AS wins
 FROM dry_run_positions
-WHERE status='closed' AND closed_at_ms >= (CAST(strftime('%s','now') AS INTEGER) - <SECONDS>) * 1000
+WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY strategy_id;
 ```
 
@@ -47,10 +47,10 @@ GROUP BY strategy_id;
 ```
 SELECT exit_reason,
   COUNT(*) AS n,
-  ROUND(AVG(pnl_percent), 2) AS avg_pnl,
-  ROUND(AVG(closed_at_ms - opened_at_ms) / 60000.0, 1) AS avg_hold_min
+  ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl,
+  ROUND((AVG(closed_at_ms - opened_at_ms) / 60000.0)::NUMERIC, 1) AS avg_hold_min
 FROM dry_run_positions
-WHERE status='closed' AND closed_at_ms >= (CAST(strftime('%s','now') AS INTEGER) - <SECONDS>) * 1000
+WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY exit_reason;
 ```
 
@@ -64,11 +64,11 @@ SELECT
     WHEN d.confidence < 80 THEN '70-79'
     ELSE '80+' END AS bucket,
   COUNT(*) AS n,
-  ROUND(AVG(p.pnl_percent), 2) AS avg_pnl,
-  ROUND(100.0 * SUM(CASE WHEN p.pnl_percent >= 0 THEN 1 ELSE 0 END) / COUNT(*), 1) AS win_rate
+  ROUND(AVG(p.pnl_percent)::NUMERIC, 2) AS avg_pnl,
+  ROUND((100.0 * SUM(CASE WHEN p.pnl_percent >= 0 THEN 1 ELSE 0 END) / COUNT(*))::NUMERIC, 1) AS win_rate
 FROM dry_run_positions p
-JOIN llm_decisions d ON p.llm_decision_id = d.id
-WHERE p.status='closed' AND p.closed_at_ms >= (CAST(strftime('%s','now') AS INTEGER) - <SECONDS>) * 1000
+JOIN llm_decisions d ON p.machine_id = d.machine_id AND p.llm_decision_local_id = d.local_id
+WHERE p.status='closed' AND p.closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY bucket;
 ```
 
@@ -76,17 +76,17 @@ GROUP BY bucket;
 
 ```
 SELECT
-  json_extract(snapshot_json, '$.strategy.id') AS strat,
-  json_extract(snapshot_json, '$.strategy.tp_percent') AS tp,
-  json_extract(snapshot_json, '$.strategy.sl_percent') AS sl,
-  json_extract(snapshot_json, '$.strategy.min_mcap_usd') AS min_mcap,
-  json_extract(snapshot_json, '$.strategy.max_mcap_usd') AS max_mcap,
-  json_extract(snapshot_json, '$.env.TRENDING_MIN_SWAPS') AS min_swaps,
-  json_extract(snapshot_json, '$.env.TRENDING_MIN_VOLUME_USD') AS min_vol,
+  snapshot#>>'{strategy,id}' AS strat,
+  snapshot#>>'{strategy,tp_percent}' AS tp,
+  snapshot#>>'{strategy,sl_percent}' AS sl,
+  snapshot#>>'{strategy,min_mcap_usd}' AS min_mcap,
+  snapshot#>>'{strategy,max_mcap_usd}' AS max_mcap,
+  snapshot#>>'{env,TRENDING_MIN_SWAPS}' AS min_swaps,
+  snapshot#>>'{env,TRENDING_MIN_VOLUME_USD}' AS min_vol,
   COUNT(*) AS n,
-  ROUND(AVG(pnl_percent), 2) AS avg_pnl
+  ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl
 FROM dry_run_positions
-WHERE status='closed' AND closed_at_ms >= (CAST(strftime('%s','now') AS INTEGER) - <SECONDS>) * 1000
+WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY strat, tp, sl, min_mcap, max_mcap, min_swaps, min_vol;
 ```
 
@@ -134,6 +134,6 @@ If a window has fewer than 10 closed trades, do not emit recommendations. Instea
 ## Guardrails
 
 - Never run state-changing CLI commands (`setfilter`, `resetstrategies confirm`, `walletadd`, `walletremove`) and never edit `strategies/*.json`.
-- Do not write to `charon.sqlite`. `scripts/sql.js` already enforces this; do not try workarounds.
+- Do not write to the database. `scripts/pg-sql.js` already enforces SELECT-only; do not try workarounds.
 - Recommendations are advisory text only. Never auto-apply config changes.
 - If a SQL query errors, report the error and continue with other queries — don't bail the whole window.

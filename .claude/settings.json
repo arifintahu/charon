@@ -3,6 +3,7 @@
     "allow": [
       "Bash(node scripts/cmd.js:*)",
       "Bash(node scripts/sql.js:*)",
+      "Bash(node scripts/pg-sql.js:*)",
       "Bash(npm run check)",
       "Bash(npm run cmd:*)",
       "Bash(git status)",
