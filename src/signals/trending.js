@@ -18,15 +18,24 @@ export function trendingSignalPass(row) {
   const swaps = Number(row?.swaps ?? 0);
   const rugRatio = Number(row?.rug_ratio ?? 0);
   const bundlerRate = Number(row?.bundler_rate ?? 0);
+  const smartCount = Number(row?.smart_degen_count ?? 0);
+  const hotLevel = Number(row?.hot_level ?? 0);
+  const topHolder = Number(row?.top_10_holder_rate ?? 0);
   const strat = activeStrategy();
   const minVolume = strat.trending_min_volume_usd ?? 0;
   const minSwaps = strat.trending_min_swaps ?? 0;
   const maxRugRatio = strat.trending_max_rug_ratio ?? 0;
   const maxBundlerRate = strat.trending_max_bundler_rate ?? 0;
+  const minSmart = strat.trending_min_smart_degen_count ?? 0;
+  const minHot = strat.trending_min_hot_level ?? 0;
+  const maxTopHolder = strat.trending_max_top_holder_rate ?? 0;
   if (minVolume > 0 && (!Number.isFinite(volume) || volume < minVolume)) return false;
   if (minSwaps > 0 && (!Number.isFinite(swaps) || swaps < minSwaps)) return false;
   if (maxRugRatio > 0 && Number.isFinite(rugRatio) && rugRatio > maxRugRatio) return false;
   if (maxBundlerRate > 0 && Number.isFinite(bundlerRate) && bundlerRate > maxBundlerRate) return false;
+  if (minSmart > 0 && smartCount < minSmart) return false;
+  if (minHot > 0 && hotLevel < minHot) return false;
+  if (maxTopHolder > 0 && topHolder > maxTopHolder) return false;
   if (row?.is_wash_trading === true || row?.is_wash_trading === 1) return false;
   return true;
 }

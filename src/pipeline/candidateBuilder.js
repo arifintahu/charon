@@ -41,6 +41,9 @@ export function filterCandidate(candidate, strategyOverride = null) {
   const trendingSwaps = Number(candidate.trending?.swaps ?? 0);
   const rugRatio = Number(candidate.trending?.rug_ratio ?? 0);
   const bundlerRate = Number(candidate.trending?.bundler_rate ?? 0);
+  const smartDegenCount = Number(candidate.trending?.smart_degen_count ?? 0);
+  const hotLevel = Number(candidate.trending?.hot_level ?? 0);
+  const topHolderRate = Number(candidate.trending?.top_10_holder_rate ?? 0);
 
   // Fee claim check
   if (candidate.feeClaim) {
@@ -106,6 +109,15 @@ export function filterCandidate(candidate, strategyOverride = null) {
     }
     if (strat.trending_max_bundler_rate > 0 && Number.isFinite(bundlerRate) && bundlerRate > strat.trending_max_bundler_rate) {
       failures.push(`trending bundler rate: ${bundlerRate} > ${strat.trending_max_bundler_rate}`);
+    }
+    if (strat.trending_min_smart_degen_count > 0 && smartDegenCount < strat.trending_min_smart_degen_count) {
+      failures.push(`trending smart degen count: ${smartDegenCount} < ${strat.trending_min_smart_degen_count}`);
+    }
+    if (strat.trending_min_hot_level > 0 && hotLevel < strat.trending_min_hot_level) {
+      failures.push(`trending hot level: ${hotLevel} < ${strat.trending_min_hot_level}`);
+    }
+    if (strat.trending_max_top_holder_rate > 0 && topHolderRate > strat.trending_max_top_holder_rate) {
+      failures.push(`trending top holder rate: ${topHolderRate} > ${strat.trending_max_top_holder_rate}`);
     }
     if (candidate.trending.is_wash_trading === true || candidate.trending.is_wash_trading === 1) {
       failures.push('trending wash trading');
