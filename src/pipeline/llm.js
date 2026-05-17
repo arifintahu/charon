@@ -94,6 +94,15 @@ export async function decideCandidateBatch(rows, triggerCandidateId) {
     'Chart data is ATH/range context. Do not penalize or reward a token only because 24h change is huge; new Pump tokens often do that.',
     'Use distance from ATH/range high and top-blast risk to decide whether entry is late.',
     'Confidence is your conviction from 0 to 100, not probability.',
+    // Empirical priors from 14d of closed degen trades (202 rugs vs 92 winners):
+    'RED FLAGS — auto-PASS or strongly downweight when any apply:',
+    '(1) metrics.marketCapUsd / metrics.liquidityUsd < 2.2 — thin runner, gaps through stop loss.',
+    '(2) metrics.liquidityUsd < 14000 — pool too shallow to absorb the exit; SL fills 25pp+ below trigger.',
+    '(3) trending.stats5m.liquidityChange < 0 with liquidity below 17000 — active liquidity drain on a thin pool.',
+    'DO NOT WEIGHT these — they show identical distributions on past rugs and winners and are sybil-fakeable:',
+    'trending.smart_degen_count, trending.hot_level, holders.top20Percent, holders.maxHolderPercent, audit.mintAuthority/freezeAuthority (both 100% disabled in cohort).',
+    'audit.insiderPct and audit.sniperPct are INVERTED in the data (winners higher) — ignore as signals.',
+    'Positive signals worth weighting: marketCapUsd / liquidityUsd above 2.5, liquidity above 17000, recent (5m/1h) liquidityChange positive.',
   ].join(' ');
   const user = {
     task: 'Pick the best dry-run buy candidate from this recent batch, or choose none.',

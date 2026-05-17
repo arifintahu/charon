@@ -40,10 +40,15 @@ export function filterCandidate(candidate, strategyOverride = null) {
   const trendingVolume = Number(candidate.trending?.volume ?? 0);
   const trendingSwaps = Number(candidate.trending?.swaps ?? 0);
   const rugRatio = Number(candidate.trending?.rug_ratio ?? 0);
-  const bundlerRate = Number(candidate.trending?.bundler_rate ?? 0);
+  const trendingBundler = Number(candidate.trending?.bundler_rate);
+  const auditBotPct = Number(candidate.jupiterAsset?.audit?.botHoldersPercentage);
+  const bundlerRate = Number.isFinite(trendingBundler)
+    ? trendingBundler
+    : (Number.isFinite(auditBotPct) ? auditBotPct / 100 : 0);
   const smartDegenCount = Number(candidate.trending?.smart_degen_count ?? 0);
   const hotLevel = Number(candidate.trending?.hot_level ?? 0);
   const topHolderRate = Number(candidate.trending?.top_10_holder_rate ?? 0);
+  const liquidityUsd = Number(candidate.metrics.liquidityUsd ?? 0);
 
   // Fee claim check
   if (candidate.feeClaim) {
@@ -61,6 +66,19 @@ export function filterCandidate(candidate, strategyOverride = null) {
   }
   if (strat.max_mcap_usd > 0 && Number.isFinite(mcap) && mcap > strat.max_mcap_usd) {
     failures.push(`market cap max: ${mcap} > ${strat.max_mcap_usd}`);
+  }
+
+  // Liquidity floor — gap-through SL protection
+  if (strat.min_liquidity_usd > 0 && liquidityUsd < strat.min_liquidity_usd) {
+    failures.push(`liquidity: ${liquidityUsd} < ${strat.min_liquidity_usd}`);
+  }
+
+  // Mcap/liquidity ratio — thin runners with disproportionate liquidity rug under any sell pressure
+  if (strat.min_mcap_to_liquidity_ratio > 0 && liquidityUsd > 0 && Number.isFinite(mcap)) {
+    const ratio = mcap / liquidityUsd;
+    if (ratio < strat.min_mcap_to_liquidity_ratio) {
+      failures.push(`mcap/liq ratio: ${ratio.toFixed(2)} < ${strat.min_mcap_to_liquidity_ratio}`);
+    }
   }
 
   // GMGN fees — only enforce when GMGN data is available; Jupiter has no equivalent

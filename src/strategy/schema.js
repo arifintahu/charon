@@ -19,6 +19,8 @@ export const STRATEGY_FIELDS = {
   trending_min_smart_degen_count: { type: 'number', required: true },
   trending_min_hot_level:    { type: 'number',  required: true },
   trending_max_top_holder_rate: { type: 'number', required: true },
+  min_liquidity_usd:         { type: 'number',  required: true },
+  min_mcap_to_liquidity_ratio: { type: 'number', required: true },
   position_size_sol:         { type: 'number',  required: true },
   max_open_positions:        { type: 'number',  required: true },
   tp_percent:                { type: 'number',  required: true },
