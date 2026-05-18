@@ -29,6 +29,8 @@ export function simulatePosition({
   const slPercent = Number(strategyConfig.sl_percent);
   const trailingEnabled = Boolean(strategyConfig.trailing_enabled);
   const trailingPercent = Number(strategyConfig.trailing_percent || 0);
+  const trailingArmPercent = Number(strategyConfig.trailing_arm_percent || 0);
+  const armPercent = trailingArmPercent > 0 ? trailingArmPercent : tpPercent;
   const maxHoldMs = Number(strategyConfig.max_hold_ms || 0);
   const partialTp = Boolean(strategyConfig.partial_tp);
   const partialTpAtPercent = Number(strategyConfig.partial_tp_at_percent || 0);
@@ -123,10 +125,11 @@ export function simulatePosition({
       highWaterPrice,
       trailingEnabled, trailingPercent,
     });
+    const armPrice = entryPrice * (1 + armPercent / 100);
 
     const slTouched = low <= triggers.slPrice;
     const tpTouched = !trailingEnabled && high >= triggers.tpPrice;
-    const trailingArmsThisCandle = trailingArmed || (trailingEnabled && high >= triggers.tpPrice);
+    const trailingArmsThisCandle = trailingArmed || (trailingEnabled && high >= armPrice);
     const trailingTouched = trailingArmsThisCandle && triggers.trailPrice != null && low <= triggers.trailPrice;
 
     const touchedReasons = [];
@@ -177,7 +180,7 @@ export function simulatePosition({
 
     // Update high water and trailing armed AFTER exit checks for this candle
     if (high > highWaterPrice) highWaterPrice = high;
-    if (!trailingArmed && trailingEnabled && high >= triggers.tpPrice) trailingArmed = true;
+    if (!trailingArmed && trailingEnabled && high >= armPrice) trailingArmed = true;
   }
 
   // No exit fired → position remains OPEN at last candle close

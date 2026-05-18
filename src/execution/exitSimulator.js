@@ -12,6 +12,7 @@ export function evaluateExitTick({
   slPercent,
   trailingEnabled = false,
   trailingPercent = 0,
+  trailingArmPercent = 0,
   maxHoldMs = 0,
   openedAtMs,
   nowMs,
@@ -47,7 +48,9 @@ export function evaluateExitTick({
 
   const tpHit = pnlPercent >= Number(tpPercent);
   const slHit = pnlPercent <= Number(slPercent);
-  const nextTrailingArmed = trailingArmed || (trailingEnabled && tpHit);
+  const armThreshold = Number(trailingArmPercent) > 0 ? Number(trailingArmPercent) : Number(tpPercent);
+  const armHit = pnlPercent >= armThreshold;
+  const nextTrailingArmed = trailingArmed || (trailingEnabled && armHit);
   const trailDrop = nextHighMcap > 0 ? (curM / nextHighMcap - 1) * 100 : 0;
   const trailingHit = nextTrailingArmed && trailingEnabled && trailDrop <= -Math.abs(Number(trailingPercent));
 

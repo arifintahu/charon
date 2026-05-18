@@ -142,6 +142,28 @@ export function filterCandidate(candidate, strategyOverride = null) {
     }
   }
 
+  // GMGN stat-based rug gates — only enforce when GMGN payload is present
+  const gmgnStat = candidate.gmgn?.stat;
+  if (gmgnStat) {
+    const devHoldRate = Number(gmgnStat.dev_team_hold_rate);
+    const sniperHoldRate = Number(gmgnStat.top70_sniper_hold_rate);
+    const gmgnBundlerRate = Number(gmgnStat.top_bundler_trader_percentage);
+    const botDegenRate = Number(gmgnStat.bot_degen_rate);
+
+    if (strat.max_dev_team_hold_rate > 0 && Number.isFinite(devHoldRate) && devHoldRate > strat.max_dev_team_hold_rate) {
+      failures.push(`dev team hold: ${devHoldRate} > ${strat.max_dev_team_hold_rate}`);
+    }
+    if (strat.max_sniper_hold_rate > 0 && Number.isFinite(sniperHoldRate) && sniperHoldRate > strat.max_sniper_hold_rate) {
+      failures.push(`sniper hold: ${sniperHoldRate} > ${strat.max_sniper_hold_rate}`);
+    }
+    if (strat.max_gmgn_bundler_rate > 0 && Number.isFinite(gmgnBundlerRate) && gmgnBundlerRate > strat.max_gmgn_bundler_rate) {
+      failures.push(`gmgn bundler rate: ${gmgnBundlerRate} > ${strat.max_gmgn_bundler_rate}`);
+    }
+    if (strat.max_bot_degen_rate > 0 && Number.isFinite(botDegenRate) && botDegenRate > strat.max_bot_degen_rate) {
+      failures.push(`bot degen rate: ${botDegenRate} > ${strat.max_bot_degen_rate}`);
+    }
+  }
+
   return { passed: failures.length === 0, failures, strategy: strat.id };
 }
 
