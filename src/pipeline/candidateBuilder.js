@@ -164,6 +164,23 @@ export function filterCandidate(candidate, strategyOverride = null) {
     }
   }
 
+  // Liquidity drain gate — reject if pool is actively losing liquidity at signal time
+  if (strat.trending_block_liquidity_drain && candidate.trending) {
+    const liqChange = candidate.trending.stats5m?.liquidityChange ?? candidate.trending.stats?.liquidityChange;
+    if (Number.isFinite(liqChange) && liqChange < 0) {
+      failures.push(`liquidity drain: stats5m.liquidityChange=${liqChange.toFixed(2)}`);
+    }
+  }
+
+  // Hour blackout — reject entries during low-quality UTC hours
+  const skipHours = strat.entry_skip_hours_utc;
+  if (Array.isArray(skipHours) && skipHours.length > 0) {
+    const hourUtc = new Date().getUTCHours();
+    if (skipHours.includes(hourUtc)) {
+      failures.push(`hour blackout: UTC ${hourUtc} in [${skipHours.join(', ')}]`);
+    }
+  }
+
   return { passed: failures.length === 0, failures, strategy: strat.id };
 }
 

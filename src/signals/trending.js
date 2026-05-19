@@ -37,6 +37,10 @@ export function trendingSignalPass(row) {
   if (minHot > 0 && hotLevel < minHot) return false;
   if (maxTopHolder > 0 && topHolder > maxTopHolder) return false;
   if (row?.is_wash_trading === true || row?.is_wash_trading === 1) return false;
+  if (strat.trending_block_liquidity_drain) {
+    const liqChange = row?.stats5m?.liquidityChange ?? row?.stats?.liquidityChange;
+    if (Number.isFinite(liqChange) && liqChange < 0) return false;
+  }
   return true;
 }
 

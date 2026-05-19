@@ -38,6 +38,8 @@ export const STRATEGY_FIELDS = {
   max_hold_ms:               { type: 'number',  required: true },
   use_llm:                   { type: 'boolean', required: true },
   llm_min_confidence:        { type: 'number',  required: true },
+  entry_skip_hours_utc:      { type: 'array',   required: true },
+  trending_block_liquidity_drain: { type: 'boolean', required: true },
 };
 
 export function validateStrategyConfig(config, label = 'strategy') {
@@ -60,6 +62,9 @@ export function validateStrategyConfig(config, label = 'strategy') {
     }
     if (spec.type === 'string' && typeof value !== 'string') {
       throw new Error(`${label}: field "${key}" must be a string, got ${typeof value}`);
+    }
+    if (spec.type === 'array' && !Array.isArray(value)) {
+      throw new Error(`${label}: field "${key}" must be an array, got ${typeof value}`);
     }
     if (spec.enum && !spec.enum.includes(value)) {
       throw new Error(`${label}: field "${key}" must be one of [${spec.enum.join(', ')}], got "${value}"`);

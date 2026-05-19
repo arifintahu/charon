@@ -1,0 +1,6 @@
+{
+  "base": { "strategy": "degen" },
+  "sweep": {
+    "trailing_arm_percent": [12, 15]
+  }
+}

@@ -11,4 +11,4 @@ node_modules/
 npm-debug.log*
 
 # CLAUDE
-.claude/setttings.local.json
+.claude/settings.local.json

@@ -27,7 +27,7 @@
     "max_dev_team_hold_rate": 0.02,
     "max_sniper_hold_rate": 0.02,
     "max_gmgn_bundler_rate": 0.50,
-    "max_bot_degen_rate": 0.65,
+    "max_bot_degen_rate": 0.50,
     "min_liquidity_usd": 16000,
     "min_mcap_to_liquidity_ratio": 2.2,
     "position_size_sol": 0.05,
@@ -42,6 +42,8 @@
     "partial_tp_sell_percent": 0,
     "max_hold_ms": 0,
     "use_llm": false,
-    "llm_min_confidence": 70
+    "llm_min_confidence": 70,
+    "entry_skip_hours_utc": [20, 21, 22],
+    "trending_block_liquidity_drain": true
   }
 }
