@@ -14,6 +14,7 @@ export function evaluateExitTick({
   trailingPercent = 0,
   trailingArmPercent = 0,
   maxHoldMs = 0,
+  slArmDelayMs = 0,
   openedAtMs,
   nowMs,
   partialTp = false,
@@ -47,7 +48,8 @@ export function evaluateExitTick({
   const nextHighPrice = Math.max(Number(highWaterPrice || 0), Number(currentPrice || 0));
 
   const tpHit = pnlPercent >= Number(tpPercent);
-  const slHit = pnlPercent <= Number(slPercent);
+  const slArmed = Number(slArmDelayMs) <= 0 || (Number(nowMs) - Number(openedAtMs)) >= Number(slArmDelayMs);
+  const slHit = slArmed && pnlPercent <= Number(slPercent);
   const armThreshold = Number(trailingArmPercent) > 0 ? Number(trailingArmPercent) : Number(tpPercent);
   const armHit = pnlPercent >= armThreshold;
   const nextTrailingArmed = trailingArmed || (trailingEnabled && armHit);

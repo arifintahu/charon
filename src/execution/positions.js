@@ -136,6 +136,7 @@ export async function refreshPosition(position, { autoExit = true, jupiterPnl = 
     trailingPercent: position.trailing_percent,
     trailingArmPercent: strat?.trailing_arm_percent || 0,
     maxHoldMs: strat?.max_hold_ms || 0,
+    slArmDelayMs: strat?.sl_arm_delay_ms || 0,
     openedAtMs: position.opened_at_ms,
     nowMs: now(),
     partialTp: Boolean(strat?.partial_tp),

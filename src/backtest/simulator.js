@@ -32,6 +32,7 @@ export function simulatePosition({
   const trailingArmPercent = Number(strategyConfig.trailing_arm_percent || 0);
   const armPercent = trailingArmPercent > 0 ? trailingArmPercent : tpPercent;
   const maxHoldMs = Number(strategyConfig.max_hold_ms || 0);
+  const slArmDelayMs = Number(strategyConfig.sl_arm_delay_ms || 0);
   const partialTp = Boolean(strategyConfig.partial_tp);
   const partialTpAtPercent = Number(strategyConfig.partial_tp_at_percent || 0);
 
@@ -127,7 +128,8 @@ export function simulatePosition({
     });
     const armPrice = entryPrice * (1 + armPercent / 100);
 
-    const slTouched = low <= triggers.slPrice;
+    const slArmed = slArmDelayMs <= 0 || (candleEndMs - entryAtMs) >= slArmDelayMs;
+    const slTouched = slArmed && low <= triggers.slPrice;
     const tpTouched = !trailingEnabled && high >= triggers.tpPrice;
     const trailingArmsThisCandle = trailingArmed || (trailingEnabled && high >= armPrice);
     const trailingTouched = trailingArmsThisCandle && triggers.trailPrice != null && low <= triggers.trailPrice;

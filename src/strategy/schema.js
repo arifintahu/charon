@@ -40,6 +40,7 @@ export const STRATEGY_FIELDS = {
   llm_min_confidence:        { type: 'number',  required: true },
   entry_skip_hours_utc:      { type: 'array',   required: true },
   trending_block_liquidity_drain: { type: 'boolean', required: true },
+  sl_arm_delay_ms:               { type: 'number',  required: true },
 };
 
 export function validateStrategyConfig(config, label = 'strategy') {
