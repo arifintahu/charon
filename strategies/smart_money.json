@@ -45,6 +45,7 @@
     "llm_min_confidence": 70,
     "entry_skip_hours_utc": [],
     "trending_block_liquidity_drain": false,
+    "trending_min_liquidity_change_5m": 0,
     "sl_arm_delay_ms": 0
   }
 }

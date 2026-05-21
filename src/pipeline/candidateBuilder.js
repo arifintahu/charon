@@ -172,6 +172,14 @@ export function filterCandidate(candidate, strategyOverride = null) {
     }
   }
 
+  // Liquidity slope gate — require minimum positive 5m liquidity change
+  if (strat.trending_min_liquidity_change_5m > 0 && candidate.trending) {
+    const liqChange = candidate.trending.stats5m?.liquidityChange ?? candidate.trending.stats?.liquidityChange;
+    if (Number.isFinite(liqChange) && liqChange < strat.trending_min_liquidity_change_5m) {
+      failures.push(`liquidity change min: ${liqChange.toFixed(2)} < ${strat.trending_min_liquidity_change_5m}`);
+    }
+  }
+
   // Hour blackout — reject entries during low-quality UTC hours
   const skipHours = strat.entry_skip_hours_utc;
   if (Array.isArray(skipHours) && skipHours.length > 0) {

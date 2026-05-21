@@ -41,6 +41,11 @@ export function trendingSignalPass(row) {
     const liqChange = row?.stats5m?.liquidityChange ?? row?.stats?.liquidityChange;
     if (Number.isFinite(liqChange) && liqChange < 0) return false;
   }
+  const minLiqChange = strat.trending_min_liquidity_change_5m ?? 0;
+  if (minLiqChange > 0) {
+    const liqChange = row?.stats5m?.liquidityChange ?? row?.stats?.liquidityChange;
+    if (Number.isFinite(liqChange) && liqChange < minLiqChange) return false;
+  }
   return true;
 }
 
