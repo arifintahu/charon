@@ -72,6 +72,8 @@ WHERE p.status='closed' AND p.closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT
 GROUP BY bucket;
 ```
 
+**Before interpreting this table, check `use_llm` for the cohort** (the drift query in step 5 returns it as `use_llm`). If the strategy runs `use_llm: false` — `degen` does — the LLM screener never executes: `orchestrator.js` writes a hardcoded `confidence: 100` sentinel for every rule-based decision that clears the filters. The bucket table then collapses to a single `80+` row at confidence 100. That is **by design, not a screener bug**. Report "LLM not used (rule-based strategy) — confidence battery N/A" and do **not** recommend an `llm_min_confidence` gate or an `src/pipeline/llm.js` fix for that cohort.
+
 ### 5. Config drift detection
 
 ```
@@ -79,18 +81,22 @@ SELECT
   snapshot#>>'{strategy,id}' AS strat,
   snapshot#>>'{strategy,tp_percent}' AS tp,
   snapshot#>>'{strategy,sl_percent}' AS sl,
+  snapshot#>>'{strategy,trailing_percent}' AS trail,
   snapshot#>>'{strategy,min_mcap_usd}' AS min_mcap,
   snapshot#>>'{strategy,max_mcap_usd}' AS max_mcap,
-  snapshot#>>'{env,TRENDING_MIN_SWAPS}' AS min_swaps,
-  snapshot#>>'{env,TRENDING_MIN_VOLUME_USD}' AS min_vol,
+  snapshot#>>'{strategy,trending_min_swaps}' AS min_swaps,
+  snapshot#>>'{strategy,trending_min_volume_usd}' AS min_vol,
+  snapshot#>>'{strategy,use_llm}' AS use_llm,
   COUNT(*) AS n,
   ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl
 FROM dry_run_positions
 WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
-GROUP BY strat, tp, sl, min_mcap, max_mcap, min_swaps, min_vol;
+GROUP BY strat, tp, sl, trail, min_mcap, max_mcap, min_swaps, min_vol, use_llm;
 ```
 
 If more than one row per strategy comes back, the config changed mid-window — call this out so the user knows the cohort isn't apples-to-apples.
+
+`trending_min_swaps` / `trending_min_volume_usd` are **strategy-JSON fields** (read them from the `{strategy,...}` path above, not `{env,...}` — they are not env vars and read null there). `degen` ships them at 100 / 5000. Do not report them as "unset / no floor enforced" off a null `env` read.
 
 Note: positions opened before the snapshot enrichment landed will have `null` for the `$.strategy.tp_percent` etc. fields (old snapshots stored only `$.strategy` as a string id). Treat those as a separate "pre-snapshot" cohort, don't blend them into the drift analysis.
 
@@ -209,3 +215,5 @@ If a window has fewer than 10 closed trades, omit recommendations from both the 
 - The only file you write is the per-window evaluation report under `evals/` — use `Write` for that and nothing else.
 - Recommendations are advisory text only. Never auto-apply config changes.
 - If a SQL query errors, report the error and continue with other queries — don't bail the whole window.
+- Do not flag `confidence = 100` as a screener bug or recommend fixing `src/pipeline/llm.js`. Check `use_llm` first (step 4) — for a `use_llm: false` strategy the 100 is the intended rule-based sentinel from `orchestrator.js`, and a confidence gate on it is inert.
+- Do not recommend raising `trending_min_swaps` / `trending_min_volume_usd` on the grounds they are "unset" — they are strategy fields (read the `{strategy,...}` path) already active at 100 / 5000. For the `degen` rug / instant-dump tail (fast, deep SL fills below the configured stop), entry filters / mcap raises / poll-cadence / stop-placement changes have all been investigated and are dead ends; treat it as a priced-in cost and recommend "hold" rather than an entry gate.

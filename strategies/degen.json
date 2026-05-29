@@ -35,7 +35,7 @@
     "tp_percent": 30,
     "sl_percent": -10,
     "trailing_enabled": true,
-    "trailing_percent": 15,
+    "trailing_percent": 18,
     "trailing_arm_percent": 15,
     "partial_tp": false,
     "partial_tp_at_percent": 0,
