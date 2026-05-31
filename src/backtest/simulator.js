@@ -73,7 +73,9 @@ export function simulatePosition({
     const candleStartMs = Number(candle.time_sec || candle.time) * 1000;
     if (!Number.isFinite(candleStartMs)) continue;
     const candleEndMs = candleStartMs + stepMs;
-    if (candleEndMs < entryAtMs) continue;
+    // Skip the partial candle containing entry: its pre-entry low/high would
+    // fire phantom exits against a momentum entry. Start at the first full post-entry candle.
+    if (candleStartMs < entryAtMs) continue;
     candlesEvaluated++;
 
     const high = Number(candle.high);

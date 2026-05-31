@@ -250,6 +250,8 @@ export async function runValidation({
       sl_percent: Number(p.sl_percent),
       trailing_enabled: Boolean(p.trailing_enabled),
       trailing_percent: Number(p.trailing_percent || 0),
+      trailing_arm_percent: Number(snapshotStrategy.trailing_arm_percent || 0),
+      sl_arm_delay_ms: Number(snapshotStrategy.sl_arm_delay_ms || 0),
       max_hold_ms: Number(snapshotStrategy.max_hold_ms || 0),
       partial_tp: Boolean(snapshotStrategy.partial_tp),
       partial_tp_at_percent: Number(snapshotStrategy.partial_tp_at_percent || 0),

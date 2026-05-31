@@ -16,7 +16,7 @@ export function intervalSeconds(interval) {
   return INTERVAL_SECONDS[interval] || 300;
 }
 
-async function fetchPage({ mint, interval, toMs, candles = CANDLES_PER_PAGE, quote = 'native' }) {
+async function fetchPage({ mint, interval, toMs, candles = CANDLES_PER_PAGE, quote = 'usd' }) {
   const url = new URL(`https://datapi.jup.ag/v2/charts/${mint}`);
   url.searchParams.set('interval', interval);
   url.searchParams.set('to', String(toMs));
@@ -77,7 +77,7 @@ function rangeCoverage(rows, fromSec, toSec) {
   };
 }
 
-export async function getCachedCandles({ mint, interval, fromMs, toMs, quote = 'native' }) {
+export async function getCachedCandles({ mint, interval, fromMs, toMs, quote = 'usd' }) {
   const fromSec = Math.floor(Number(fromMs) / 1000);
   const toSec = Math.ceil(Number(toMs) / 1000);
   const res = await pgQuery(
@@ -90,7 +90,7 @@ export async function getCachedCandles({ mint, interval, fromMs, toMs, quote = '
   return res.rows;
 }
 
-export async function ensureCandles({ mint, interval, fromMs, toMs, quote = 'native', maxPages = 12 }) {
+export async function ensureCandles({ mint, interval, fromMs, toMs, quote = 'usd', maxPages = 12 }) {
   const fromSec = Math.floor(Number(fromMs) / 1000);
   const toSec = Math.ceil(Number(toMs) / 1000);
   const existing = await getCachedCandles({ mint, interval, fromMs, toMs, quote });
