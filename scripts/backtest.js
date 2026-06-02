@@ -12,6 +12,7 @@ const log = logger('backtest');
 const sweepLog = logger('sweep');
 const validateLog = logger('validate-strategy');
 import { runBacktest, runValidation } from '../src/backtest/runner.js';
+import { ensureCandles } from '../src/backtest/candles.js';
 import {
   summariseSimulated,
   formatSingleReport,
@@ -198,6 +199,15 @@ async function runSweep(args, fromMs, toMs) {
   const interval = base.interval || args.interval;
   const candleRule = base.candle_rule || args.candleRule;
   const rows = [];
+  // Every cell simulates the same candidates over the same (mint, interval, window),
+  // so read each series once and reuse across cells instead of re-querying Postgres per cell.
+  const candleCache = new Map();
+  const memoFetcher = (opts) => {
+    const key = `${opts.mint}|${opts.interval}|${opts.fromMs}|${opts.toMs}|${opts.quote || 'usd'}`;
+    let cached = candleCache.get(key);
+    if (!cached) { cached = ensureCandles(opts); candleCache.set(key, cached); }
+    return cached;
+  };
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
     const overrides = { strategy: {}, llm_min_confidence: null };
@@ -211,6 +221,7 @@ async function runSweep(args, fromMs, toMs) {
       strategyId: args.strategyId || base.strategy,
       interval, candleOrderRule: candleRule,
       unscreenedPolicy: base.unscreened_policy || args.unscreenedPolicy,
+      candleFetcher: memoFetcher,
     });
     const summary = summariseSimulated(results);
     rows.push({ cell, summary });

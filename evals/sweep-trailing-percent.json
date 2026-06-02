@@ -1,7 +1,7 @@
 {
   "base": { "strategy": "degen" },
   "sweep": {
-    "trailing_percent": [12, 15, 18, 21],
+    "trailing_percent": [12, 15, 18, 21, 24],
     "max_hold_ms": [43200000]
   }
 }
