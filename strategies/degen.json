@@ -8,7 +8,7 @@
     "min_source_count": 1,
     "require_fee_claim": false,
     "token_age_max_ms": 86400000,
-    "min_mcap_usd": 10000,
+    "min_mcap_usd": 70000,
     "max_mcap_usd": 1000000,
     "min_fee_claim_sol": 0,
     "min_gmgn_total_fee_sol": 0,
