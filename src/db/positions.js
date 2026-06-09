@@ -60,6 +60,14 @@ export function allPositions(limit = 10) {
   return db.prepare('SELECT * FROM dry_run_positions ORDER BY id DESC LIMIT ?').all(limit);
 }
 
+export function recentClosedExits(strategyId, limit = 10) {
+  return db.prepare(
+    `SELECT exit_reason FROM dry_run_positions
+     WHERE status != 'open' AND strategy_id = ?
+     ORDER BY closed_at_ms DESC LIMIT ?`
+  ).all(strategyId, limit);
+}
+
 export function createDryRunPosition(candidateId, candidate, decision, reason = 'llm_buy') {
   const strat = activeStrategy();
   const sizeSol = strat.position_size_sol;

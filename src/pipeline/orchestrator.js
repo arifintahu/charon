@@ -1,11 +1,10 @@
 import { now, pruneSeen } from '../utils.js';
-import { numSetting, boolSetting } from '../db/settings.js';
+import { numSetting, boolSetting, setSetting, activeStrategy } from '../db/settings.js';
 import { upsertCandidate, updateCandidateStatus, recentEligibleCandidates, candidateById } from '../db/candidates.js';
 import { storeDecision, storeBatchDecision, logDecisionEvent } from '../db/decisions.js';
 import { buildCandidate } from './candidateBuilder.js';
 import { decideCandidateBatch } from './llm.js';
-import { activeStrategy } from '../db/settings.js';
-import { createDryRunPosition, canOpenMorePositions, openPositionCount, hasOpenPositionForMint, tradingMode } from '../db/positions.js';
+import { createDryRunPosition, canOpenMorePositions, openPositionCount, hasOpenPositionForMint, tradingMode, recentClosedExits } from '../db/positions.js';
 import { sendBatchReveal, sendTelegram, sendPositionOpen, sendTradeIntent } from '../telegram/send.js';
 import { candidateSummary } from '../telegram/format.js';
 import { createTradeIntent } from '../db/intents.js';
@@ -20,6 +19,18 @@ import { logger } from '../log.js';
 const agentLog = logger('agent');
 const candidateLog = logger('candidate');
 
+function checkSlCooldown(stratId) {
+  const key = `sl_cooldown_until_${stratId}`;
+  if (Date.now() < numSetting(key, 0)) return true;
+  const threshold = numSetting('sl_streak_cooldown_count', 3);
+  const recent = recentClosedExits(stratId, threshold);
+  if (recent.length >= threshold && recent.every(p => p.exit_reason === 'SL')) {
+    setSetting(key, String(Date.now() + numSetting('sl_streak_cooldown_ms', 3600000)));
+    return true;
+  }
+  return false;
+}
+
 export const seenSignalCandidates = new Map();
 
 setDegenHandler(maybeProcessDegenCandidate);
@@ -27,9 +38,14 @@ setCandidateHandler(processCandidateFromSignals);
 
 export async function processCandidateFromSignals(signals) {
   // Skip if max positions reached — don't waste enrichment/LLM calls
+  const strat = activeStrategy();
   if (!canOpenMorePositions()) {
-    const max = activeStrategy().max_open_positions;
-    agentLog.info(`max positions reached (${openPositionCount()}/${max}), skipping ${signals.mint.slice(0, 8)}...`);
+    agentLog.info(`max positions reached (${openPositionCount()}/${strat.max_open_positions}), skipping ${signals.mint.slice(0, 8)}...`);
+    return;
+  }
+
+  if (checkSlCooldown(strat.id)) {
+    agentLog.info(`sl streak cooldown active (${strat.id}), skipping ${signals.mint.slice(0, 8)}...`);
     return;
   }
 
@@ -40,8 +56,6 @@ export async function processCandidateFromSignals(signals) {
     candidateLog.info(`filtered ${candidate.token.mint.slice(0, 8)}... ${candidate.filters.failures.join('; ')}`);
     return;
   }
-
-  const strat = activeStrategy();
   let rows, batchDecision, batchId;
 
   if (!strat.use_llm) {
