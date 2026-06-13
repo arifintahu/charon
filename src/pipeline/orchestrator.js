@@ -23,9 +23,12 @@ function checkSlCooldown(stratId) {
   const key = `sl_cooldown_until_${stratId}`;
   if (Date.now() < numSetting(key, 0)) return true;
   const threshold = numSetting('sl_streak_cooldown_count', 3);
-  const recent = recentClosedExits(stratId, threshold);
+  const cooldownMs = numSetting('sl_streak_cooldown_ms', 3600000);
+  // Only streaks within the cooldown window count — otherwise the same SL rows
+  // re-arm the cooldown forever after it expires, permanently halting trading.
+  const recent = recentClosedExits(stratId, threshold, Date.now() - cooldownMs);
   if (recent.length >= threshold && recent.every(p => p.exit_reason === 'SL')) {
-    setSetting(key, String(Date.now() + numSetting('sl_streak_cooldown_ms', 3600000)));
+    setSetting(key, String(Date.now() + cooldownMs));
     return true;
   }
   return false;
