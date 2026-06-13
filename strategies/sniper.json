@@ -2,7 +2,6 @@
   "id": "sniper",
   "name": "Sniper",
   "enabled": false,
-  "validation": null,
   "config": {
     "entry_mode": "immediate",
     "min_source_count": 2,

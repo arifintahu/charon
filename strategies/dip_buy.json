@@ -2,7 +2,6 @@
   "id": "dip_buy",
   "name": "Dip Buy",
   "enabled": false,
-  "validation": null,
   "config": {
     "entry_mode": "wait_for_dip",
     "min_source_count": 1,

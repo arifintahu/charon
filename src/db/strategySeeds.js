@@ -8,7 +8,6 @@ const log = logger('strategies');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_DIR = path.resolve(__dirname, '../../strategies');
-const MAX_VALIDATION_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function loadStrategiesFromDisk(dir = DEFAULT_DIR) {
   if (!fs.existsSync(dir)) {
@@ -37,29 +36,12 @@ export function loadStrategiesFromDisk(dir = DEFAULT_DIR) {
     validateStrategyConfig(raw.config, raw.id);
 
     const enabled = Boolean(raw.enabled);
-    if (enabled) {
-      enabledCount += 1;
-      const validation = raw.validation;
-      if (!validation || typeof validation !== 'object') {
-        log.warn(`${raw.id}: enabled without a "validation" block. Run: npm run backtest -- --strategy ${raw.id} --from 7d --validate-strategy`);
-      } else {
-        const validatedAt = Number(validation.validated_at_ms);
-        if (!Number.isFinite(validatedAt) || validatedAt <= 0) {
-          throw new Error(`${raw.id}: validation.validated_at_ms must be a positive number`);
-        }
-        const ageMs = Date.now() - validatedAt;
-        if (ageMs > MAX_VALIDATION_AGE_MS) {
-          const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
-          log.warn(`${raw.id}: validation is ${ageDays}d old (max ${Math.floor(MAX_VALIDATION_AGE_MS / (24 * 60 * 60 * 1000))}d). Re-run: npm run backtest -- --strategy ${raw.id} --from 7d --validate-strategy`);
-        }
-      }
-    }
+    if (enabled) enabledCount += 1;
 
     strategies.push({
       id: raw.id,
       name: raw.name,
       enabled,
-      validation: raw.validation || null,
       config: raw.config,
     });
   }
@@ -101,9 +83,8 @@ export function syncStrategiesToDb(db, strategies, { invalidateCache } = {}) {
       `   Available: ${ids}`,
       '   Trading will fall back to the "sniper" config silently.',
       '   To activate one:',
-      '     1. npm run backtest -- --strategy <id> --from 7d --validate-strategy',
-      '     2. set "enabled": true in strategies/<id>.json',
-      '     3. node scripts/cmd.js resetstrategies confirm   (or restart)',
+      '     1. set "enabled": true in strategies/<id>.json',
+      '     2. node scripts/cmd.js resetstrategies confirm   (or restart)',
     ].join('\n'));
   }
 }

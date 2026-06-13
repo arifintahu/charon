@@ -152,7 +152,7 @@ async function backfillTable(tableName, mid, fromMs) {
   if (!config) throw new Error(`unknown table: ${tableName}`);
   let select = config.selectAll;
   const params = [];
-  if (fromMs && tableName !== 'historical_candles') {
+  if (fromMs) {
     const col = tableName.includes('position') || tableName === 'candidates'
       ? (tableName === 'dry_run_positions' ? 'opened_at_ms' : 'created_at_ms')
       : 'at_ms';

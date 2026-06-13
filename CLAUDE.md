@@ -6,13 +6,13 @@ Project-scoped guidance for Claude sessions on the Charon repo.
 
 Charon is a Telegram-driven Solana trading agent. It ingests Pump.fun token signals, enriches and filters candidates through strategy gates, optionally picks one via LLM, then executes in `dry_run` / `confirm` / `live` mode through Jupiter Ultra.
 
-Trading hot path writes to local `charon.sqlite` (better-sqlite3, synchronous, never blocks on network). An async outbox worker mirrors analytic rows to Postgres (optional, set `POSTGRES_URL`) for cross-machine pooling and backtesting.
+Trading hot path writes to local `charon.sqlite` (better-sqlite3, synchronous, never blocks on network). An async outbox worker mirrors analytic rows to Postgres (optional, set `POSTGRES_URL`) for cross-machine pooling and evaluation.
 
 ## Storage
 
-- **`strategies/*.json`** — source of truth for strategy definitions. Every boot rebuilds the SQLite `strategies` table from these files via `src/db/strategySeeds.js#syncStrategiesToDb` (REPLACE, not merge). To change a strategy: edit the JSON file, then either restart or `node scripts/cmd.js resetstrategies confirm`. The 5s cache picks the new values up automatically. A strategy may only carry `enabled: true` if its `validation` block is under 30 days old — populate it with `npm run backtest -- --strategy <id> --from 7d --validate-strategy`.
+- **`strategies/*.json`** — source of truth for strategy definitions. Every boot rebuilds the SQLite `strategies` table from these files via `src/db/strategySeeds.js#syncStrategiesToDb` (REPLACE, not merge). To change a strategy: edit the JSON file, then either restart or `node scripts/cmd.js resetstrategies confirm`. The 5s cache picks the new values up automatically. Exactly one strategy may carry `enabled: true`.
 - **Local SQLite** (`charon.sqlite`) — hot path for trading state (positions, intents, decisions, candidates). Strategy rows live here too but as a working copy of the JSON. Open positions resume after restart. Strategy/settings hot-read with 5s cache.
-- **Postgres** (optional) — analytic sink populated by `src/sync/postgresSink.js` from `sync_outbox` rows. Per-row `machine_id` partitions data across bot instances. `historical_candles` cache for the backtester lives here. Live state (positions, intents, guardrails) is per-machine; Postgres only pools analytics.
+- **Postgres** (optional) — analytic sink populated by `src/sync/postgresSink.js` from `sync_outbox` rows. Per-row `machine_id` partitions data across bot instances. Live state (positions, intents, guardrails) is per-machine; Postgres only pools analytics.
 - Sync runs every `POSTGRES_SYNC_INTERVAL_MS` (default 5s), batched 100 rows, idempotent via `ON CONFLICT (machine_id, local_id) DO UPDATE`.
 - If `POSTGRES_URL` is unset, the bot still runs — sync is a no-op.
 
@@ -20,7 +20,6 @@ Trading hot path writes to local `charon.sqlite` (better-sqlite3, synchronous, n
 
 - `npm run check` — `node --check` on all boot files + the CLI shim.
 - No test suite. Behaviour is observed via Telegram, or driven headlessly with `scripts/cmd.js` (see `using-charon-cli` skill).
-- For the backtester: `node scripts/backtest.js --validate --from <window>` re-simulates closed positions against historical Jupiter candles. Tolerance ≥80% within ±5% PnL, ≥90% matching exit_reason is the trust threshold.
 - Say so explicitly when you can't verify a UI/behaviour change end-to-end.
 
 ## Local Postgres (docker-compose)
@@ -35,14 +34,11 @@ npm run pg:down       # stop container (data persists in named volume)
 
 `POSTGRES_URL=postgres://charon:charon@localhost:5432/charon` for local dev. Production points the same env var at the real host.
 
-## Backtesting
+## Evaluation
 
-- `npm run backtest:fetch -- --window <w>` warms `historical_candles` from Jupiter datapi.
-- `npm run backtest -- --validate --from <w>` re-runs closed positions through the simulator.
-- `npm run backtest -- --from <w> --override-tp 75 --override-sl -30 --override-llm-min-confidence 70` for single-config replay.
-- `npm run backtest -- --from <w> --spec path/to/sweep.json --top 10` for cartesian sweeps.
-- `npm run backtest -- --strategy <id> --from <w> --validate-strategy` replays archived candidates through `strategies/<id>.json` and, on a passing run (≥10 trades, avg PnL > 0, worst PnL ≥ -50%), atomically writes a `validation` block back to the JSON file. Required before a strategy can be `enabled: true`.
-- All reads go through Postgres; the backtester never touches SQLite directly. Run `pg:backfill` first if porting older data.
+- `/evaluate [windows]` (slash command) → dispatches the `charon-evaluator` subagent. Default windows `1d 3d 7d 30d`.
+- Pulls the metric battery from Postgres analytics (headline / per-strategy / per-exit-reason / LLM-confidence buckets / config drift), writes one report per window to `evals/`.
+- Recommendations are gated to ≥10 closed trades per window — below that it reports "insufficient data".
 
 ## Layout
 

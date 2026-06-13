@@ -164,7 +164,7 @@ export function strategyMenuText() {
     '🎯 <b>Strategy</b>',
     '',
     fallback ? `⚠️ <b>No strategy enabled in strategies/*.json — falling back to ${escapeHtml(strat.name)}</b>` : null,
-    fallback ? 'Run <code>npm run backtest -- --strategy &lt;id&gt; --from 7d --validate-strategy</code>, set <code>"enabled": true</code>, then <code>/resetstrategies confirm</code>.' : null,
+    fallback ? 'Set <code>"enabled": true</code> in <code>strategies/&lt;id&gt;.json</code>, then <code>/resetstrategies confirm</code>.' : null,
     fallback ? '' : null,
     `Active: <b>${escapeHtml(strat.name)}</b>${fallback ? ' (fallback)' : ''}`,
     `Entry: ${entryIcons[strat.entry_mode] || '?'} ${strat.entry_mode}`,

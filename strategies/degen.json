@@ -2,7 +2,6 @@
   "id": "degen",
   "name": "Degen",
   "enabled": true,
-  "validation": null,
   "config": {
     "entry_mode": "immediate",
     "min_source_count": 1,

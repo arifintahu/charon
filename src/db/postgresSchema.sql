@@ -153,19 +153,3 @@ CREATE TABLE IF NOT EXISTS learning_lessons (
   synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (machine_id, local_id)
 );
-
--- Shared across machines, populated by the backtester
-CREATE TABLE IF NOT EXISTS historical_candles (
-  mint TEXT NOT NULL,
-  interval TEXT NOT NULL,
-  time_sec BIGINT NOT NULL,
-  open DOUBLE PRECISION NOT NULL,
-  high DOUBLE PRECISION NOT NULL,
-  low DOUBLE PRECISION NOT NULL,
-  close DOUBLE PRECISION NOT NULL,
-  volume DOUBLE PRECISION,
-  quote TEXT NOT NULL DEFAULT 'native',
-  fetched_at_ms BIGINT NOT NULL,
-  PRIMARY KEY (mint, interval, time_sec, quote)
-);
-CREATE INDEX IF NOT EXISTS idx_hist_candles_mint_time ON historical_candles (mint, interval, time_sec);

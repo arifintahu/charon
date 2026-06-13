@@ -35,7 +35,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with your credentials. Optionally start the Postgres analytics sink (used by the backtester and for multi-machine pooling):
+Edit `.env` with your credentials. Optionally start the Postgres analytics sink (pools analytics across machines for `/evaluate`):
 
 ```bash
 npm run pg:up
@@ -154,15 +154,7 @@ Default strategies (under `strategies/`):
 - `smart_money.json`: stricter holder/trending quality, partial TP support.
 - `degen.json`: lower source threshold, rule-based (no LLM).
 
-To change a strategy: edit the JSON file, then either restart or `/resetstrategies confirm`. The 5s strategy cache picks the new values up automatically.
-
-A strategy can only be marked `enabled: true` once it has a fresh `validation` block (≤ 30 days old). Generate one by running:
-
-```bash
-npm run backtest -- --strategy <id> --from 7d --validate-strategy
-```
-
-If the run passes (≥10 trades, avg PnL > 0, worst PnL ≥ -50%), the JSON file is rewritten in place with the new marker.
+To change a strategy: edit the JSON file, then either restart or `/resetstrategies confirm`. The 5s strategy cache picks the new values up automatically. Exactly one strategy may be `enabled: true` at a time.
 
 ## Telegram Commands
 
@@ -199,7 +191,7 @@ Open positions resume monitoring after restart.
 
 ### Postgres analytics sink (optional)
 
-If `POSTGRES_URL` is set, an async outbox worker mirrors analytic rows to Postgres for cross-machine pooling and backtesting. Live trading is unaffected by remote outages — if Postgres is down, the outbox queues and drains when it returns.
+If `POSTGRES_URL` is set, an async outbox worker mirrors analytic rows to Postgres for cross-machine pooling and evaluation. Live trading is unaffected by remote outages — if Postgres is down, the outbox queues and drains when it returns.
 
 Per-row `machine_id` (auto-generated UUID, set `CHARON_MACHINE_ID`/`CHARON_MACHINE_LABEL` to override) partitions data across bot instances. Live state (open positions, intents, guardrails) stays per-machine — Postgres only pools analytics.
 
@@ -221,59 +213,11 @@ POSTGRES_SYNC_INTERVAL_MS=5000
 POSTGRES_SYNC_BATCH_SIZE=100
 ```
 
-Tables synced: `candidates`, `llm_decisions`, `llm_batches`, `decision_logs`, `dry_run_positions`, `dry_run_trades`, `learning_lessons`. Plus `historical_candles` (shared across machines, populated by the backtester).
+Tables synced: `candidates`, `llm_decisions`, `llm_batches`, `decision_logs`, `dry_run_positions`, `dry_run_trades`, `learning_lessons`.
 
-## Backtesting
+## Evaluation
 
-The backtester replays archived candidates through the existing filter / LLM-threshold / exit logic against historical Jupiter candles, so you can sweep tunable params (TP/SL/trailing, filter thresholds, LLM confidence cutoff) in seconds instead of hours of live dry-run.
-
-Requires Postgres (sync layer above). One-time setup:
-
-```bash
-npm run pg:up && npm run pg:migrate && npm run pg:backfill
-```
-
-Workflow:
-
-```bash
-# Warm the historical_candles cache from Jupiter datapi for the window:
-npm run backtest:fetch -- --window 7d --interval 5_MINUTE
-
-# Validate the simulator against actual closed positions (trust check):
-node scripts/backtest.js --validate --from 7d
-# Pass criterion: ≥80% within ±5% PnL, ≥90% matching exit_reason
-
-# Single-config replay with overrides:
-node scripts/backtest.js --from 7d \
-  --override-tp 75 --override-sl -30 \
-  --override-llm-min-confidence 70
-
-# Cartesian sweep (top-K by avg PnL):
-node scripts/backtest.js --from 30d --spec scripts/backtest-sweeps/sniper-tp.json --top 10
-```
-
-Spec JSON format:
-
-```json
-{
-  "base": { "strategy": "sniper", "candle_rule": "pessimistic", "interval": "5_MINUTE" },
-  "sweep": {
-    "tp_percent": [50, 75, 100, 150],
-    "sl_percent": [-25, -35, -50],
-    "trailing_percent": [15, 20, 30],
-    "llm_min_confidence": [60, 70, 80]
-  }
-}
-```
-
-Modeling choices:
-
-- Exit fills are modeled at trigger price (entry × (1 + sl/100)) — not the candle wick low — to match how live polling actually behaves.
-- `candle-rule`: `pessimistic` (SL fires first when both touched in one candle), `optimistic`, or `midpoint`. Ambiguous candles are counted and surfaced — high counts mean the result lives inside the optimistic/pessimistic uncertainty band.
-- `unscreened-policy`: candidates filtered before reaching the LLM have no cached verdict. `cohort` (default) simulates and tags them separately; `skip` ignores them; `approve` treats them as if BUY was issued.
-- No LLM re-calls. Confidence-threshold sweeps work against archived `llm_decisions`.
-
-For Claude Code users: `/backtest 7d` dispatches the `charon-backtester` subagent which handles cache warming, validation, and reporting.
+Once trades have closed, `/evaluate [windows]` (default `1d 3d 7d 30d`) dispatches the `charon-evaluator` subagent. It pulls a metric battery from the Postgres analytics sink — headline PnL, per-strategy and per-exit-reason breakdowns, LLM-confidence buckets, and config drift — and writes one report per window to `evals/`. Recommendations are gated to ≥10 closed trades per window; below that it reports "insufficient data".
 
 ## Verification
 

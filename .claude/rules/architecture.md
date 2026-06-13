@@ -20,7 +20,6 @@ Canonical pipeline diagram: `docs/workflow.mmd`.
 | Persistence (SQLite) | `src/db/{connection,candidates,decisions,intents,positions,settings,outbox,machineId,strategySeeds}.js` |
 | Strategies | `strategies/*.json` (source of truth), `src/strategy/schema.js` (whitelist + validator), `src/db/strategySeeds.js` (loader + sync) |
 | Persistence (Postgres) | `src/db/postgres.js`, `src/db/postgresSchema.sql`, `src/sync/postgresSink.js` |
-| Backtesting | `src/backtest/{candles,simulator,runner,report}.js`, `scripts/backtest{,-fetch}.js` |
 | Learning / reports | `src/learning/{commands,lessons,report,summary}.js` |
 | Config | `src/config.js`, `.env`, `docker-compose.yml` |
 | Utilities | `src/utils.js`, `src/format.js`, `src/log.js` (timestamped `logger('<tag>')` — never use bare `console.log` for runtime status) |
@@ -49,8 +48,7 @@ Position monitor (`monitorPositions`) runs in both modes on `POSITION_CHECK_MS`.
 
 - `charon.sqlite` (better-sqlite3) is the trading hot-path source of truth.
 - Open positions resume monitoring after restart.
-- Strategy configs are hot-read from SQLite (5s cache) — but **SQLite strategies are a working copy of `strategies/*.json`**. Every boot rebuilds the table from those files via `src/db/strategySeeds.js#syncStrategiesToDb` (REPLACE, not merge). To change a strategy: edit its JSON file, then restart or `/resetstrategies confirm`.
-- A strategy may only carry `enabled: true` if its JSON has a `validation` block under 30 days old. Run `npm run backtest -- --strategy <id> --from 7d --validate-strategy` to populate it (atomic write).
+- Strategy configs are hot-read from SQLite (5s cache) — but **SQLite strategies are a working copy of `strategies/*.json`**. Every boot rebuilds the table from those files via `src/db/strategySeeds.js#syncStrategiesToDb` (REPLACE, not merge). To change a strategy: edit its JSON file, then restart or `/resetstrategies confirm`. Exactly one strategy may carry `enabled: true`.
 - `.env` values (API keys, wallet key, RPC URLs, polling intervals) require restart.
 
 ### Postgres analytics sink (optional)
@@ -62,18 +60,6 @@ Position monitor (`monitorPositions`) runs in both modes on `POSITION_CHECK_MS`.
 - Tables synced: `candidates`, `llm_decisions`, `llm_batches`, `decision_logs`, `dry_run_positions`, `dry_run_trades`, `learning_lessons`. **Not synced**: `settings`, `strategies`, `saved_wallets`, `price_alerts`, `trade_intents`, `tp_sl_rules` (per-machine live state).
 - Failure handling: outbox rows back off exponentially on Postgres errors. Live trading is unaffected by remote outages.
 - JSONB columns are stringified via `JSON.stringify` before parameter binding — `pg` coerces JS arrays into Postgres arrays otherwise.
-
-### Backtester
-
-- Reads from Postgres only (`POSTGRES_URL` required). Run `npm run pg:backfill` once to seed it.
-- `scripts/backtest-fetch.js` warms `historical_candles` from Jupiter datapi `/v2/charts/{mint}` (1m/5m/1h/4h intervals).
-- `scripts/backtest.js` modes:
-  - default — single config replay against archived candidates.
-  - `--validate` — re-simulate closed positions; pass criterion ≥80% within ±5% PnL, ≥90% matching `exit_reason`.
-  - `--spec <path>` — cartesian sweep of `tp_percent`, `sl_percent`, `trailing_percent`, `llm_min_confidence`.
-- Exit fills are modeled at trigger price (entry × (1 + sl/100)) — not the candle wick low — to match live polling behavior. Real stops fill near the trigger; candle lows are not honest exit prices.
-- `candle-rule`: `pessimistic` (SL fires first when both touched in one candle), `optimistic`, `midpoint`. Ambiguous candles (both touched) are counted and surfaced.
-- `unscreened-policy`: `cohort` (default — simulate but tag separately) | `skip` | `approve`. Applies to candidates that were filtered before reaching the LLM.
 
 ### Per-trade snapshot
 
@@ -95,16 +81,8 @@ The `env` whitelist lives in `src/db/positions.js#ENV_SNAPSHOT_KEYS` — signal 
 - Jupiter Ultra mode handles slippage and routing — no manual slippage config.
 - Single-chat Telegram: only `TELEGRAM_CHAT_ID` messages are processed.
 - `CHARON_CLI=1` disables bot polling so `scripts/cmd.js` can run handlers without fighting the live bot.
-- Exit logic for `refreshPosition` lives in pure-function `src/execution/exitSimulator.js#evaluateExitTick`. The backtest simulator reuses the same logic but models stop fills at trigger price, not candle wick lows.
+- Exit logic for `refreshPosition` lives in pure-function `src/execution/exitSimulator.js#evaluateExitTick`.
 - When adding a new analytic table or column, mirror it in `src/db/postgresSchema.sql`, the `TABLES` registry in `src/sync/postgresSink.js`, AND `scripts/pg-backfill.js`. JSON columns must be `JSON.stringify`'d before pg parameter binding.
-
-## Backtest
-
-- `/backtest [window] [overrides|--spec path]` (slash command) → dispatches `charon-backtester` subagent.
-- Default window: `7d`. Reads exclusively from Postgres; warm `historical_candles` via `npm run backtest:fetch` first.
-- Validation always runs before sweeps. If <80% within ±5% PnL tolerance or <90% match exit_reason, recommendations are not trustworthy.
-- Sweep specs are JSON (`base` + `sweep` cartesian product). Top-K by avg_pnl.
-- Never re-runs the LLM; uses cached verdicts from `llm_decisions` and applies the override `llm_min_confidence` threshold.
 
 ## Evaluation
 
