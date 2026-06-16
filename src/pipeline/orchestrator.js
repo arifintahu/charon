@@ -21,17 +21,19 @@ const candidateLog = logger('candidate');
 
 function checkSlCooldown(stratId) {
   const key = `sl_cooldown_until_${stratId}`;
-  if (Date.now() < numSetting(key, 0)) return true;
   const threshold = numSetting('sl_streak_cooldown_count', 3);
   const cooldownMs = numSetting('sl_streak_cooldown_ms', 3600000);
+  const until = numSetting(key, 0);
+  if (Date.now() < until) return { active: true, armed: false, until, threshold, cooldownMs };
   // Only streaks within the cooldown window count — otherwise the same SL rows
   // re-arm the cooldown forever after it expires, permanently halting trading.
   const recent = recentClosedExits(stratId, threshold, Date.now() - cooldownMs);
   if (recent.length >= threshold && recent.every(p => p.exit_reason === 'SL')) {
-    setSetting(key, String(Date.now() + cooldownMs));
-    return true;
+    const newUntil = Date.now() + cooldownMs;
+    setSetting(key, String(newUntil));
+    return { active: true, armed: true, until: newUntil, threshold, cooldownMs };
   }
-  return false;
+  return null;
 }
 
 export const seenSignalCandidates = new Map();
@@ -47,8 +49,19 @@ export async function processCandidateFromSignals(signals) {
     return;
   }
 
-  if (checkSlCooldown(strat.id)) {
-    agentLog.info(`sl streak cooldown active (${strat.id}), skipping ${signals.mint.slice(0, 8)}...`);
+  const cooldown = checkSlCooldown(strat.id);
+  if (cooldown) {
+    agentLog.info(`sl streak cooldown active (${strat.id}${cooldown.armed ? ', just armed' : ''}), skipping ${signals.mint.slice(0, 8)}...`);
+    logDecisionEvent({
+      decision: { selected_mint: signals.mint },
+      action: cooldown.armed ? 'entry_skipped_sl_cooldown_armed' : 'entry_skipped_sl_cooldown',
+      strategyId: strat.id,
+      guardrails: {
+        cooldownUntilMs: cooldown.until,
+        slStreakThreshold: cooldown.threshold,
+        cooldownMs: cooldown.cooldownMs,
+      },
+    });
     return;
   }
 

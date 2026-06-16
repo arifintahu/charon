@@ -65,9 +65,11 @@ export function logDecisionEvent({
   action,
   guardrails = {},
   execution = {},
+  strategyId = null,
 }) {
   const selectedCandidate = selectedRow?.candidate || null;
-  const strategyId = selectedCandidate?.filters?.strategy
+  const resolvedStrategyId = strategyId
+    || selectedCandidate?.filters?.strategy
     || rows.find(row => row?.candidate?.filters?.strategy)?.candidate?.filters?.strategy
     || null;
   const result = db.prepare(`
@@ -116,7 +118,7 @@ export function logDecisionEvent({
       };
     })),
     json(execution),
-    strategyId,
+    resolvedStrategyId,
   );
   enqueueSync('decision_logs', Number(result.lastInsertRowid));
 }

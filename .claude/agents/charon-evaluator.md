@@ -100,7 +100,44 @@ If more than one row per strategy comes back, the config changed mid-window — 
 
 Note: positions opened before the snapshot enrichment landed will have `null` for the `$.strategy.tp_percent` etc. fields (old snapshots stored only `$.strategy` as a string id). Treat those as a separate "pre-snapshot" cohort, don't blend them into the drift analysis.
 
-### 6. (Optional) `/learn <window>` for LLM-synthesized lessons
+### 6. Per-day breakdown (regime-day detection)
+
+```
+SELECT
+  to_char(to_timestamp(closed_at_ms / 1000) AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM-DD') AS day,
+  COUNT(*) AS n,
+  ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl,
+  ROUND((100.0 * SUM(CASE WHEN exit_reason='SL' THEN 1 ELSE 0 END) / COUNT(*))::NUMERIC, 1) AS sl_share,
+  ROUND(SUM(pnl_sol)::NUMERIC, 4) AS total_sol
+FROM dry_run_positions
+WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
+GROUP BY day ORDER BY day;
+```
+
+Most useful for `3d`+ windows (a `1d` window collapses to one row — skip the section there). This is the **regime lens**: degen's PnL swings are driven far more by which days the window catches than by entry config. Before attributing a negative or weak window to config, check whether **one crash day** dragged it — a single day at deeply negative avg PnL with elevated SL share, against otherwise-positive days under identical config, is a regime day, not a config problem (cf. Jun 07 2026: one day at −9.44% erased three good ones). When that pattern shows, say so and recommend **hold**, not an entry-config change. The timezone is pinned to `Asia/Jakarta` (WIB, +0700) to match the report convention; if the machine runs another tz, adjust it.
+
+### 7. Circuit-breaker activity (consecutive-SL cooldown)
+
+```
+SELECT
+  action,
+  COUNT(*) AS n,
+  to_char(MIN(to_timestamp(at_ms / 1000) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD HH24:MI') AS first_at,
+  to_char(MAX(to_timestamp(at_ms / 1000) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD HH24:MI') AS last_at
+FROM decision_logs
+WHERE action LIKE 'entry_skipped_sl_cooldown%'
+  AND at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
+GROUP BY action;
+```
+
+The SL-streak circuit breaker writes synced `decision_logs` rows since 2026-06-16 (the only direct signal of breaker activity — the `sl_cooldown_until_*` setting is per-machine and **not** synced to Postgres). Read the two actions as:
+
+- `entry_skipped_sl_cooldown_armed` — **distinct firings**: each row is a candidate that tripped a fresh 3-SL streak and armed the cooldown.
+- `entry_skipped_sl_cooldown` — **suppressed entries**: candidates skipped while a cooldown was already running.
+
+Interpretation: **no rows** → the breaker never fired this window (calm regime / no 3-SL streak) — expected on healthy windows; not a fault. **Firings clustered on a crash day** (cross-check against step 6) → the breaker engaged as designed; report it and judge net effect (did it cut crash-day exposure, or over-suppress on a recoverable day?). **Firings on otherwise-positive days** → the breaker may be too eager; consider raising `sl_streak_cooldown_count` or shortening `sl_streak_cooldown_ms`. The breaker is the one live, still-unproven lever — when it fires, grade it explicitly instead of treating the window as config-stable.
+
+### 8. (Optional) `/learn <window>` for LLM-synthesized lessons
 
 Only run if the user wants narrative lessons on top of metrics. Costs an LLM call.
 
@@ -173,6 +210,28 @@ data_source: <e.g. remote Postgres (pooled across instances)>
 — or — Strategy <id> changed <field> from <a> to <b> mid-window; cohort is not apples-to-apples.>
 <Note any pre-snapshot / null-tp-sl cohort excluded.>
 
+## Per-day breakdown
+
+<Omit this whole section for a 1d window. Otherwise:>
+
+| Day | Trades | Avg PnL | SL share | Total SOL |
+|---|---|---|---|---|
+| <YYYY-MM-DD> | <n> | <avg>% | <share>% | <z> |
+
+<One line: is the window uniform, or did one crash day drag it? If a single day dominates the loss, say so — it's a regime day under stable config, not an entry problem.>
+
+## Circuit breaker
+
+<None — the SL-streak breaker did not fire this window.
+— or —>
+
+| Event | Count | First | Last |
+|---|---|---|---|
+| Firings (armed) | <n> | <YYYY-MM-DD HH:MM> | <…> |
+| Entries suppressed | <n> | <…> | <…> |
+
+<One line: did firings line up with a crash day (working as designed) or land on positive days (too eager)?>
+
 ## Patterns
 
 - <1-3 bullets, each citing numbers from the tables above>
@@ -202,6 +261,8 @@ By strategy: <id> N (win X%, avg Y%) · ...
 By exit reason: SL N (avg X%) · TRAILING_TP N (avg Y%) · ...
 LLM confidence: 80+ N (win X%) · 70-79 N (win Y%) · ...
 Config: <stable / drift note>
+Per-day: <uniform — or — crash day <date> at <avg>% dragged the window> (omit for 1d)
+Breaker: <didn't fire — or — N firings / M suppressed, clustered <date>>
 Patterns: <1-3 bullets>
 Recommendations: <numbered, priority order — or "insufficient data, need N more closed trades">
 ```
