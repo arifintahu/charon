@@ -10,6 +10,18 @@ You evaluate the Charon bot's recent trading performance and surface patterns an
 
 The caller passes one or more time windows. Accepted forms: `1d`, `3d`, `7d`, `30d`, `12h`, `1w`, `1m`. If none is given, run all four defaults: `1d`, `3d`, `7d`, `30d`.
 
+The caller may also pass an execution **mode** — `live`, `dry_run`, or `all`. **Default is `live`.**
+
+## Execution-mode scope
+
+Evaluate **live** trades by default — `dry_run_positions` holds both paper and live rows (`execution_mode` column), so an unscoped query blends real performance with old dry-run experiments and is misleading. Substitute `<MODE>` like `<SECONDS>`:
+
+- Every query against `dry_run_positions` MUST add `AND execution_mode = '<MODE>'` to its `WHERE` clause.
+- Every query against `decision_logs` MUST add `AND mode = '<MODE>'` (that table uses `mode`, not `execution_mode`).
+- `live` (default) → `'live'` · `dry_run` → `'dry_run'` · `all` → **omit** the mode filter entirely.
+
+State the evaluated mode in each report's header and in `data_source` (e.g. `remote Postgres · mode=live`).
+
 ## Tools
 
 - `node scripts/cmd.js /learn <window>` — existing learning summary (route breakdown, win rate, LLM stats, lessons). One LLM call per invocation, so don't loop carelessly.
@@ -25,10 +37,10 @@ SELECT
   ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl_pct,
   ROUND((100.0 * SUM(CASE WHEN pnl_percent >= 0 THEN 1 ELSE 0 END) / COUNT(*))::NUMERIC, 1) AS win_rate
 FROM dry_run_positions
-WHERE status = 'closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000;
+WHERE status = 'closed' AND execution_mode = '<MODE>' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000;
 ```
 
-Replace `<SECONDS>` for the window (e.g. `1d` → `86400`).
+Replace `<SECONDS>` for the window (e.g. `1d` → `86400`) and `<MODE>` per the execution-mode scope above (default `live`; for `all`, drop the `execution_mode` clause).
 
 ### 2. Per-strategy
 
@@ -38,7 +50,7 @@ SELECT strategy_id,
   ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl,
   SUM(CASE WHEN pnl_percent >= 0 THEN 1 ELSE 0 END) AS wins
 FROM dry_run_positions
-WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
+WHERE status='closed' AND execution_mode = '<MODE>' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY strategy_id;
 ```
 
@@ -50,7 +62,7 @@ SELECT exit_reason,
   ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl,
   ROUND((AVG(closed_at_ms - opened_at_ms) / 60000.0)::NUMERIC, 1) AS avg_hold_min
 FROM dry_run_positions
-WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
+WHERE status='closed' AND execution_mode = '<MODE>' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY exit_reason;
 ```
 
@@ -68,7 +80,7 @@ SELECT
   ROUND((100.0 * SUM(CASE WHEN p.pnl_percent >= 0 THEN 1 ELSE 0 END) / COUNT(*))::NUMERIC, 1) AS win_rate
 FROM dry_run_positions p
 JOIN llm_decisions d ON p.machine_id = d.machine_id AND p.llm_decision_local_id = d.local_id
-WHERE p.status='closed' AND p.closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
+WHERE p.status='closed' AND p.execution_mode = '<MODE>' AND p.closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY bucket;
 ```
 
@@ -90,7 +102,7 @@ SELECT
   COUNT(*) AS n,
   ROUND(AVG(pnl_percent)::NUMERIC, 2) AS avg_pnl
 FROM dry_run_positions
-WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
+WHERE status='closed' AND execution_mode = '<MODE>' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY strat, tp, sl, trail, min_mcap, max_mcap, min_swaps, min_vol, use_llm;
 ```
 
@@ -110,7 +122,7 @@ SELECT
   ROUND((100.0 * SUM(CASE WHEN exit_reason='SL' THEN 1 ELSE 0 END) / COUNT(*))::NUMERIC, 1) AS sl_share,
   ROUND(SUM(pnl_sol)::NUMERIC, 4) AS total_sol
 FROM dry_run_positions
-WHERE status='closed' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
+WHERE status='closed' AND execution_mode = '<MODE>' AND closed_at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY day ORDER BY day;
 ```
 
@@ -126,6 +138,7 @@ SELECT
   to_char(MAX(to_timestamp(at_ms / 1000) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD HH24:MI') AS last_at
 FROM decision_logs
 WHERE action LIKE 'entry_skipped_sl_cooldown%'
+  AND mode = '<MODE>'
   AND at_ms >= (EXTRACT(EPOCH FROM NOW())::BIGINT - <SECONDS>) * 1000
 GROUP BY action;
 ```
