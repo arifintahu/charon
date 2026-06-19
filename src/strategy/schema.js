@@ -42,6 +42,8 @@ export const STRATEGY_FIELDS = {
   trending_block_liquidity_drain:    { type: 'boolean', required: true },
   trending_min_liquidity_change_5m:  { type: 'number',  required: true },
   sl_arm_delay_ms:                   { type: 'number',  required: true },
+  sl_streak_cooldown_count:          { type: 'number',  required: false },
+  sl_streak_cooldown_ms:             { type: 'number',  required: false },
 };
 
 export function validateStrategyConfig(config, label = 'strategy') {
