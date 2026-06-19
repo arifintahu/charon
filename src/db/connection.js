@@ -219,7 +219,6 @@ export function initDb() {
     llm_candidate_pick_count: process.env.LLM_CANDIDATE_PICK_COUNT || '10',
     llm_candidate_max_age_ms: process.env.LLM_CANDIDATE_MAX_AGE_MS || String(10 * 60 * 1000),
     llm_min_confidence: '75',
-    dry_run_buy_sol: '0.1',
     min_mcap_usd: '0',
     max_mcap_usd: '0',
     min_gmgn_total_fee_sol: '0',
