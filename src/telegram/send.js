@@ -3,7 +3,7 @@ import { TELEGRAM_CHAT_ID, TELEGRAM_TOPIC_ID } from '../config.js';
 import { now, json } from '../utils.js';
 import { db } from '../db/connection.js';
 import { escapeHtml, fmtPct, fmtSol, fmtUsd, short, gmgnLink } from '../format.js';
-import { numSetting } from '../db/settings.js';
+import { activeStrategy } from '../db/settings.js';
 import { candidateSummary, compactCandidateLine, batchRevealSummary, formatPosition } from './format.js';
 import { candidateButtons, batchRevealButtons, positionButtons, intentButtons } from './menus.js';
 import { batchById } from '../db/decisions.js';
@@ -83,7 +83,7 @@ export async function sendTradeIntent(intentId, candidate, decision) {
     '',
     candidateSummary(candidate, decision),
     '',
-    `Size: <b>${fmtSol(numSetting('dry_run_buy_sol', 0.1))} SOL</b>`,
+    `Size: <b>${fmtSol(activeStrategy().position_size_sol)} SOL</b>`,
     'Execution: confirmation required before signing.',
   ].join('\n'), intentButtons(intentId));
 }

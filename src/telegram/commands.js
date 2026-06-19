@@ -93,7 +93,6 @@ export async function handleMessage(msg) {
       'llm_min_confidence',
       'llm_candidate_pick_count',
       'llm_candidate_max_age_ms',
-      'dry_run_buy_sol',
     ]);
     if (!valid.has(key) || value == null) {
       return bot.sendMessage(chatId, `Usage: /setfilter &lt;name&gt; &lt;value&gt;\n\n${filtersText()}`, { parse_mode: 'HTML' });

@@ -1,9 +1,11 @@
 import { db } from './connection.js';
 import { now, safeJson, json } from '../utils.js';
-import { numSetting } from './settings.js';
+import { activeStrategy } from './settings.js';
 
 export function createTradeIntent(candidateId, candidate, decision, mode, status, side = 'buy') {
-  const sizeSol = numSetting('dry_run_buy_sol', 0.1);
+  // Position size is the active strategy's position_size_sol — the same value
+  // the live swap (router.js) and dry-run/live position records use.
+  const sizeSol = activeStrategy().position_size_sol;
   const result = db.prepare(`
     INSERT INTO trade_intents (
       candidate_id, mint, mode, status, created_at_ms, updated_at_ms, side,
