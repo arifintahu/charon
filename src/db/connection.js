@@ -214,7 +214,8 @@ export function initDb() {
 
   const defaults = {
     agent_enabled: 'true',
-    trading_mode: process.env.TRADING_MODE || 'dry_run',
+    // trading_mode is handled below — .env (TRADING_MODE) is its source of truth,
+    // so it is reconciled on every boot rather than seeded once.
     llm_candidate_pick_count: process.env.LLM_CANDIDATE_PICK_COUNT || '10',
     llm_candidate_max_age_ms: process.env.LLM_CANDIDATE_MAX_AGE_MS || String(10 * 60 * 1000),
     llm_min_confidence: '75',
@@ -236,6 +237,19 @@ export function initDb() {
   };
   const insert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
   for (const [key, value] of Object.entries(defaults)) insert.run(key, value);
+
+  // ── trading_mode: .env is the source of truth ──────────────────────────────
+  // Force the DB row to match TRADING_MODE on every boot (upsert, not seed) so
+  // operators flip live/dry by editing .env and restarting — never by editing
+  // the DB. Telegram can still toggle the mode at runtime; the next restart
+  // re-asserts whatever .env says. Invalid values fall back to dry_run (safe).
+  const VALID_MODES = ['dry_run', 'confirm', 'live'];
+  const envMode = (process.env.TRADING_MODE || 'dry_run').trim();
+  const tradingMode = VALID_MODES.includes(envMode) ? envMode : 'dry_run';
+  db.prepare(`
+    INSERT INTO settings (key, value) VALUES ('trading_mode', ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(tradingMode);
 
   syncStrategiesToDb(db, loadStrategiesFromDisk());
 }
