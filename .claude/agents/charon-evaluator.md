@@ -160,11 +160,12 @@ Per window, do two things: **write a report file** to `evals/`, then **return a 
 
 ### 1. Write the report file
 
-One file per window: `evals/evaluate-<window>-<range>.md`.
+One file per window: `evals/evaluate-<window>-<range>-<mode>.md`.
 
 - `<window>` — the window token (`1d`, `7d`, `30d`, …).
 - `<range>` — `<startYYYYMMDD>-<startHHMM>_<endYYYYMMDD>-<endHHMM>`. The end is the evaluation time, the start is the end minus the window. Get the current time with `date "+%Y-%m-%d %H:%M %z"` (it also fills `generated_at` and `range_end`) — never guess it.
-- Example: a `1d` eval generated 2026-05-14 22:20 → `evals/evaluate-1d-20260513-2220_20260514-2220.md`.
+- `<mode>` — the evaluated execution mode (`live` / `dry_run` / `all`), so live and dry-run reports for the same window never collide. Default is `live`.
+- Example: a `1d` **live** eval generated 2026-05-14 22:20 → `evals/evaluate-1d-20260513-2220_20260514-2220-live.md`. A `dry_run` eval of the same window → `…_20260514-2220-dry_run.md`.
 
 Fill this template — every placeholder — and drop any row or bucket that has no data:
 
@@ -268,7 +269,7 @@ Insufficient data — need <N> more closed trades.
 Once the file is written, return one block per window — this is what the caller relays to the user:
 
 ```
-## <window>  →  evals/evaluate-<window>-<range>.md
+## <window>  →  evals/evaluate-<window>-<range>-<mode>.md
 Closed: N · Win rate: X% · Avg PnL: Y% · Total: Z SOL
 By strategy: <id> N (win X%, avg Y%) · ...
 By exit reason: SL N (avg X%) · TRAILING_TP N (avg Y%) · ...

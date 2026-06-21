@@ -15,4 +15,6 @@ Dispatch the `charon-evaluator` subagent to evaluate past trades.
 
 Pass the window list and the mode verbatim to the agent and report its summary back. Do not run SQL or `/learn` yourself — that's the agent's job.
 
+The agent names each report `evals/evaluate-<window>-<range>-<mode>.md` — the mode is appended automatically, so a default run writes `…-live.md` and a `--mode dry_run` run writes `…-dry_run.md`. Live and dry-run reports for the same window never overwrite each other.
+
 For recurring evaluation, the user can wrap this with `/schedule` (cron) or `/loop` (interval): e.g. `/schedule daily /evaluate 1d`.
