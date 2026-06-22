@@ -62,7 +62,7 @@ export function allPositions(limit = 10) {
 
 export function recentClosedExits(strategyId, limit = 10, sinceMs = 0) {
   return db.prepare(
-    `SELECT exit_reason FROM dry_run_positions
+    `SELECT exit_reason, pnl_percent FROM dry_run_positions
      WHERE status != 'open' AND strategy_id = ? AND closed_at_ms > ?
      ORDER BY closed_at_ms DESC LIMIT ?`
   ).all(strategyId, sinceMs, limit);

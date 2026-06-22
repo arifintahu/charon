@@ -19,21 +19,52 @@ import { logger } from '../log.js';
 const agentLog = logger('agent');
 const candidateLog = logger('candidate');
 
+const DAY_MS = 86_400_000;
+// Midnight UTC (GMT+0) of the day containing ms — epoch 0 is itself a UTC midnight.
+const utcDayStart = ms => Math.floor(ms / DAY_MS) * DAY_MS;
+
+// Returns a descriptor when entries should be skipped, else null. Two layers:
+//   - streak cooldown: `threshold` consecutive losing exits (SL or red TP) within `cooldownMs`
+//     arms a `cooldownMs` halt.
+//   - daily halt: once the streak cooldown arms `dailyHaltCount` times in one UTC day, halt all
+//     entries until the next 00:00 UTC.
+// Streak lookups stay time-bounded and every halt has a concrete expiry that lapses on its own,
+// so stale rows can't re-arm forever and the day counter self-resets — no latch, no manual reset.
 function checkSlCooldown(strat) {
-  const key = `sl_cooldown_until_${strat.id}`;
+  const cooldownKey = `sl_cooldown_until_${strat.id}`;
+  const haltKey = `sl_daily_halt_until_${strat.id}`;
+  const dayKey = `sl_arm_day_${strat.id}`;
+  const countKey = `sl_arm_count_${strat.id}`;
   const threshold = strat.sl_streak_cooldown_count ?? numSetting('sl_streak_cooldown_count', 3);
   const cooldownMs = strat.sl_streak_cooldown_ms ?? numSetting('sl_streak_cooldown_ms', 3600000);
-  const until = numSetting(key, 0);
-  if (Date.now() < until) return { active: true, armed: false, until, threshold, cooldownMs };
-  // Only streaks within the cooldown window count — otherwise the same SL rows
-  // re-arm the cooldown forever after it expires, permanently halting trading.
-  const recent = recentClosedExits(strat.id, threshold, Date.now() - cooldownMs);
-  if (recent.length >= threshold && recent.every(p => p.exit_reason === 'SL')) {
-    const newUntil = Date.now() + cooldownMs;
-    setSetting(key, String(newUntil));
-    return { active: true, armed: true, until: newUntil, threshold, cooldownMs };
+  const dailyHaltCount = strat.sl_daily_halt_count ?? numSetting('sl_daily_halt_count', 3);
+  const now = Date.now();
+
+  const haltUntil = numSetting(haltKey, 0);
+  if (now < haltUntil) return { active: true, armed: false, kind: 'daily_halt', until: haltUntil, threshold, cooldownMs, dailyHaltCount };
+  const cooldownUntil = numSetting(cooldownKey, 0);
+  if (now < cooldownUntil) return { active: true, armed: false, kind: 'cooldown', until: cooldownUntil, threshold, cooldownMs, dailyHaltCount };
+
+  // A losing TRAILING_TP counts toward the streak just like an SL; only a flat/winning exit resets it.
+  const recent = recentClosedExits(strat.id, threshold, now - cooldownMs);
+  const isLoss = p => p.exit_reason === 'SL' || (p.pnl_percent != null && p.pnl_percent < 0);
+  if (recent.length < threshold || !recent.every(isLoss)) return null;
+
+  const newCooldownUntil = now + cooldownMs;
+  setSetting(cooldownKey, String(newCooldownUntil));
+
+  // Count arms within the current UTC day; the Nth arm escalates to a halt until 00:00 UTC.
+  const today = utcDayStart(now);
+  const armCount = (numSetting(dayKey, 0) === today ? numSetting(countKey, 0) : 0) + 1;
+  setSetting(dayKey, String(today));
+  setSetting(countKey, String(armCount));
+
+  if (armCount >= dailyHaltCount) {
+    const dayHaltUntil = today + DAY_MS;
+    setSetting(haltKey, String(dayHaltUntil));
+    return { active: true, armed: true, kind: 'daily_halt', until: dayHaltUntil, threshold, cooldownMs, dailyHaltCount, armCount };
   }
-  return null;
+  return { active: true, armed: true, kind: 'cooldown', until: newCooldownUntil, threshold, cooldownMs, dailyHaltCount, armCount };
 }
 
 export const seenSignalCandidates = new Map();
@@ -51,15 +82,19 @@ export async function processCandidateFromSignals(signals) {
 
   const cooldown = checkSlCooldown(strat);
   if (cooldown) {
-    agentLog.info(`sl streak cooldown active (${strat.id}${cooldown.armed ? ', just armed' : ''}), skipping ${signals.mint.slice(0, 8)}...`);
+    const dailyHalt = cooldown.kind === 'daily_halt';
+    const action = `entry_skipped_sl_${dailyHalt ? 'daily_halt' : 'cooldown'}${cooldown.armed ? '_armed' : ''}`;
+    agentLog.info(`${dailyHalt ? 'sl daily halt' : 'sl streak cooldown'} active (${strat.id}${cooldown.armed ? ', just armed' : ''}), skipping ${signals.mint.slice(0, 8)}...`);
     logDecisionEvent({
       decision: { selected_mint: signals.mint },
-      action: cooldown.armed ? 'entry_skipped_sl_cooldown_armed' : 'entry_skipped_sl_cooldown',
+      action,
       strategyId: strat.id,
       guardrails: {
         cooldownUntilMs: cooldown.until,
         slStreakThreshold: cooldown.threshold,
         cooldownMs: cooldown.cooldownMs,
+        dailyHaltCount: cooldown.dailyHaltCount,
+        armCountToday: cooldown.armCount,
       },
     });
     return;
