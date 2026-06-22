@@ -2,7 +2,7 @@ import { now } from '../utils.js';
 import { db } from '../db/connection.js';
 import { WSOL_MINT, LIVE_MIN_SOL_RESERVE_LAMPORTS } from '../config.js';
 import { escapeHtml, fmtSol } from '../format.js';
-import { executeJupiterSwap, liveWalletBalanceLamports, fetchLiveTokenBalance } from '../liveExecutor.js';
+import { executeJupiterSwap, liveWalletBalanceLamports, fetchLiveTokenBalance, closeEmptyTokenAccounts } from '../liveExecutor.js';
 import { activeStrategy } from '../db/settings.js';
 import { createLivePosition, canOpenMorePositions, openPositionCount, hasOpenPositionForMint } from '../db/positions.js';
 import { intentById } from '../db/intents.js';
@@ -45,11 +45,15 @@ export async function executeLiveBuy(selectedRow, decision, batchId, rows = [], 
 export async function executeLiveSell(position, reason) {
   const amount = position.token_amount_raw || position.token_amount_est;
   if (!amount || Number(amount) <= 0) throw new Error('Live position has no token amount to sell.');
-  return executeJupiterSwap({
+  const swap = await executeJupiterSwap({
     inputMint: position.mint,
     outputMint: WSOL_MINT,
     amount,
   });
+  // Reclaim the now-empty token account's rent. Fire-and-forget: must never delay or break the
+  // sell/PnL path, and it no-ops on partial sells (account still holds tokens).
+  closeEmptyTokenAccounts(position.mint).catch(() => {});
+  return swap;
 }
 
 export async function executeConfirmedIntent(chatId, intentId) {
