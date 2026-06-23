@@ -30,7 +30,7 @@
     "min_liquidity_usd": 16000,
     "min_mcap_to_liquidity_ratio": 2.2,
     "position_size_sol": 0.02,
-    "max_open_positions": 5,
+    "max_open_positions": 2,
     "tp_percent": 30,
     "sl_percent": -10,
     "trailing_enabled": true,
