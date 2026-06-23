@@ -8,6 +8,8 @@ import {
   JSON_HEADERS,
   SOLANA_PRIVATE_KEY,
   SOLANA_RPC_URL,
+  SOLANA_RPC_URL_ALT,
+  SOLANA_RPC_TIMEOUT_MS,
 } from './config.js';
 import { logger } from './log.js';
 
@@ -23,6 +25,22 @@ const TOKEN_PROGRAM_IDS = [
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// Fetch wrapper for the RPC Connection: send to the primary endpoint, and on a timeout or a 5xx
+// (the public node's Cloudflare 504s) transparently retry the same request against the alternate
+// endpoint. Wraps every Connection method without touching each call site.
+function rpcFailoverFetch(_url, options) {
+  const attempt = (endpoint) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SOLANA_RPC_TIMEOUT_MS);
+    return fetch(endpoint, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+  };
+  const useAlt = SOLANA_RPC_URL_ALT && SOLANA_RPC_URL_ALT !== SOLANA_RPC_URL;
+  return attempt(SOLANA_RPC_URL).then(
+    res => (useAlt && res.status >= 500 ? attempt(SOLANA_RPC_URL_ALT) : res),
+    err => { if (!useAlt) throw err; return attempt(SOLANA_RPC_URL_ALT); },
+  );
+}
+
 function parseKeypair(secret) {
   const value = String(secret || '').trim();
   if (!value) return null;
@@ -34,8 +52,9 @@ export function initLiveExecution() {
   if (!SOLANA_PRIVATE_KEY) return;
   try {
     liveWallet = parseKeypair(SOLANA_PRIVATE_KEY);
-    solanaConnection = new Connection(SOLANA_RPC_URL, 'confirmed');
+    solanaConnection = new Connection(SOLANA_RPC_URL, { commitment: 'confirmed', fetch: rpcFailoverFetch });
     log.info(`wallet loaded ${liveWallet.publicKey.toBase58()}`);
+    if (SOLANA_RPC_URL_ALT && SOLANA_RPC_URL_ALT !== SOLANA_RPC_URL) log.info(`rpc failover → ${SOLANA_RPC_URL_ALT}`);
   } catch (err) {
     liveWallet = null;
     solanaConnection = null;
