@@ -8,6 +8,7 @@ import { sendTelegram } from './telegram/send.js';
 import { makeFailureTracker } from './utils.js';
 import { startPostgresSync, stopPostgresSync } from './sync/postgresSink.js';
 import { machineId } from './db/machineId.js';
+import { pruneDatabase, vacuumIfBloated } from './db/prune.js';
 import { logger } from './log.js';
 
 const botLog = logger('bot');
@@ -20,6 +21,11 @@ validateConfig();
 
 export async function startCharon() {
   botLog.info(`machine_id ${machineId()}`);
+  pruneDatabase();
+  vacuumIfBloated();
+  setInterval(() => {
+    try { pruneDatabase(); } catch (err) { botLog.warn(`scheduled prune failed: ${err.message}`); }
+  }, 24 * 60 * 60 * 1000);
   startPostgresSync();
   initLiveExecution();
   setupTelegram();
