@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js && node --check src/app.js && node --check src/config.js && node --check src/liveExecutor.js && node --check src/execution/router.js && node --check src/pipeline/orchestrator.js && node --check src/db/positions.js && node --check src/db/prune.js && node --check src/strategy/schema.js && node --check scripts/cmd.js && node --check scripts/db-stats.js && node --check scripts/sql.js && node --check scripts/pg-sql.js && node --check scripts/pg-migrate.js && node --check scripts/pg-backfill.js && node --check scripts/pg-vacuum.js && node --check scripts/reclaim-rent.js",
+    "check": "node --check index.js && node --check src/app.js && node --check src/config.js && node --check src/loadEnv.js && node --check src/liveExecutor.js && node --check src/execution/router.js && node --check src/pipeline/orchestrator.js && node --check src/db/positions.js && node --check src/db/prune.js && node --check src/strategy/schema.js && node --check scripts/cmd.js && node --check scripts/db-stats.js && node --check scripts/sql.js && node --check scripts/pg-sql.js && node --check scripts/pg-migrate.js && node --check scripts/pg-backfill.js && node --check scripts/pg-vacuum.js && node --check scripts/reclaim-rent.js && node --check scripts/live-wallet-state.js && node --check scripts/fee-audit.js && node --check scripts/live-vs-model.js",
     "cmd": "node scripts/cmd.js",
     "pg:up": "docker compose up -d postgres",
     "pg:down": "docker compose down",

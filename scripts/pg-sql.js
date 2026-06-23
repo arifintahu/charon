@@ -3,9 +3,7 @@
 //   node scripts/pg-sql.js "SELECT id, mint, status FROM dry_run_positions ORDER BY id DESC LIMIT 5"
 
 import pg from 'pg';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import '../src/loadEnv.js';
 
 const { Pool } = pg;
 

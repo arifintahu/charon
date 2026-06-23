@@ -4,10 +4,8 @@
 //   node scripts/live-wallet-state.js
 
 import pg from 'pg';
-import dotenv from 'dotenv';
+import '../src/loadEnv.js';
 import { Connection, PublicKey } from '@solana/web3.js';
-
-dotenv.config();
 
 const RPC = process.env.SOLANA_RPC_URL || `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
 const PROGRAMS = [

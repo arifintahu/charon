@@ -1,6 +1,4 @@
-import dotenv from 'dotenv';
-
-dotenv.config();
+import './loadEnv.js';
 
 export const APP_NAME = 'Charon';
 export const DB_PATH = process.env.DB_PATH || './charon.sqlite';

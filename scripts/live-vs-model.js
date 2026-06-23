@@ -19,6 +19,7 @@
 //     --json    emit the machine-readable summary only
 
 import Database from 'better-sqlite3';
+import { DB_PATH } from '../src/config.js';
 
 const args = process.argv.slice(2);
 const usePg = args.includes('--pg');
@@ -34,8 +35,6 @@ const WHERE = "status = 'closed' AND execution_mode = 'live' AND entry_mcap > 0 
 async function fetchRows() {
   if (usePg) {
     const { default: pg } = await import('pg');
-    const { default: dotenv } = await import('dotenv');
-    dotenv.config();
     if (!process.env.POSTGRES_URL) { console.error('POSTGRES_URL is not set'); process.exit(1); }
     const pool = new pg.Pool({ connectionString: process.env.POSTGRES_URL });
     try {
@@ -48,7 +47,7 @@ async function fetchRows() {
       await pool.end();
     }
   }
-  const db = new Database('./charon.sqlite', { readonly: true });
+  const db = new Database(DB_PATH, { readonly: true });
   return db.prepare(`SELECT ${COLS} FROM dry_run_positions WHERE ${WHERE} ORDER BY closed_at_ms`).all(cutoffMs);
 }
 

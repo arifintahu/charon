@@ -6,10 +6,8 @@
 //   node scripts/fee-audit.js [N]
 
 import pg from 'pg';
-import dotenv from 'dotenv';
+import '../src/loadEnv.js';
 import { Connection } from '@solana/web3.js';
-
-dotenv.config();
 
 const RPC = process.env.SOLANA_RPC_URL || `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY}`;
 const SIZE = 0.02;

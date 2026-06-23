@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // What's bloating charon.sqlite? Per-table row count + JSON-blob byte weight, read-only.
-// Run from the repo dir so DB_PATH (.env) resolves: node scripts/db-stats.js
+// Runs from any directory — .env is loaded from the repo root via src/config.js.
 
 import Database from 'better-sqlite3';
 import { DB_PATH } from '../src/config.js';
