@@ -21,6 +21,8 @@ const TOKEN_PROGRAM_IDS = [
   new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'),
 ];
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 function parseKeypair(secret) {
   const value = String(secret || '').trim();
   if (!value) return null;
@@ -161,25 +163,30 @@ async function sendCloseBatch(instructions) {
 
 // After a full sell the position's token account is empty; close it to reclaim the ~0.002 SOL
 // rent. Best-effort: never throws into the exit path, and only ever closes a zero-balance
-// account (a partial sell leaves tokens behind, so it is skipped).
+// account (a partial sell leaves tokens behind, so it is skipped). The on-chain balance can lag
+// a beat behind the sell, so re-read a few times before giving up — otherwise a stale non-zero
+// read silently skips the close and the account leaks.
 export async function closeEmptyTokenAccounts(mint) {
   if (!liveWallet || !solanaConnection) return 0;
   try {
-    const accounts = await solanaConnection.getParsedTokenAccountsByOwner(
-      liveWallet.publicKey,
-      { mint: new PublicKey(mint) },
-      'confirmed',
-    );
-    const instructions = [];
-    for (const { pubkey, account } of accounts.value) {
-      const amount = account.data?.parsed?.info?.tokenAmount?.amount;
-      if (amount && amount !== '0') continue;
-      instructions.push(closeAccountInstruction(account.owner, pubkey, liveWallet.publicKey));
+    const mintPk = new PublicKey(mint);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const accounts = await solanaConnection.getParsedTokenAccountsByOwner(liveWallet.publicKey, { mint: mintPk }, 'confirmed');
+      if (!accounts.value.length) return 0; // nothing to close (e.g. Jupiter already closed it)
+      const empty = accounts.value.filter(a => {
+        const amount = a.account.data?.parsed?.info?.tokenAmount?.amount;
+        return !amount || amount === '0';
+      });
+      if (empty.length) {
+        const instructions = empty.map(a => closeAccountInstruction(a.account.owner, a.pubkey, liveWallet.publicKey));
+        const signature = await sendCloseBatch(instructions);
+        log.info(`reclaimed rent on ${empty.length} empty account(s) for ${mint.slice(0, 8)}... (${signature.slice(0, 8)}...)`);
+        return empty.length;
+      }
+      await sleep(1500); // balance still shows tokens — wait for the sell to propagate, then re-read
     }
-    if (!instructions.length) return 0;
-    const signature = await sendCloseBatch(instructions);
-    log.info(`reclaimed rent on ${instructions.length} empty account(s) for ${mint.slice(0, 8)}... (${signature.slice(0, 8)}...)`);
-    return instructions.length;
+    log.warn(`close ${mint.slice(0, 8)}... — still non-empty after retries, skipped`);
+    return 0;
   } catch (err) {
     log.warn(`close empty account ${mint.slice(0, 8)}... failed: ${err.message}`);
     return 0;
