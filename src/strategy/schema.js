@@ -45,6 +45,8 @@ export const STRATEGY_FIELDS = {
   sl_streak_cooldown_count:          { type: 'number',  required: false },
   sl_streak_cooldown_ms:             { type: 'number',  required: false },
   sl_daily_halt_count:               { type: 'number',  required: false },
+  reentry_block_loss_pct:            { type: 'number',  required: false },
+  reentry_block_ms:                  { type: 'number',  required: false },
 };
 
 export function validateStrategyConfig(config, label = 'strategy') {

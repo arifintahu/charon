@@ -68,6 +68,14 @@ export function recentClosedExits(strategyId, limit = 10, sinceMs = 0) {
   ).all(strategyId, sinceMs, limit);
 }
 
+export function recentLossForMint(mint, lossPct, sinceMs) {
+  return db.prepare(
+    `SELECT symbol, pnl_percent, closed_at_ms FROM dry_run_positions
+     WHERE status != 'open' AND mint = ? AND pnl_percent <= ? AND closed_at_ms > ?
+     ORDER BY closed_at_ms DESC LIMIT 1`
+  ).get(mint, lossPct, sinceMs);
+}
+
 export function createDryRunPosition(candidateId, candidate, decision, reason = 'llm_buy') {
   const strat = activeStrategy();
   const sizeSol = strat.position_size_sol;

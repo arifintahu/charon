@@ -48,6 +48,8 @@
     "sl_arm_delay_ms": 0,
     "sl_streak_cooldown_count": 4,
     "sl_streak_cooldown_ms": 3600000,
-    "sl_daily_halt_count": 3
+    "sl_daily_halt_count": 3,
+    "reentry_block_loss_pct": -20,
+    "reentry_block_ms": 21600000
   }
 }

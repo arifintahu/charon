@@ -4,7 +4,7 @@ import { upsertCandidate, updateCandidateStatus, recentEligibleCandidates, candi
 import { storeDecision, storeBatchDecision, logDecisionEvent } from '../db/decisions.js';
 import { buildCandidate } from './candidateBuilder.js';
 import { decideCandidateBatch } from './llm.js';
-import { createDryRunPosition, canOpenMorePositions, openPositionCount, hasOpenPositionForMint, tradingMode, recentClosedExits } from '../db/positions.js';
+import { createDryRunPosition, canOpenMorePositions, openPositionCount, hasOpenPositionForMint, tradingMode, recentClosedExits, recentLossForMint } from '../db/positions.js';
 import { sendBatchReveal, sendTelegram, sendPositionOpen, sendTradeIntent } from '../telegram/send.js';
 import { candidateSummary } from '../telegram/format.js';
 import { createTradeIntent } from '../db/intents.js';
@@ -67,6 +67,17 @@ function checkSlCooldown(strat) {
   return { active: true, armed: true, kind: 'cooldown', until: newCooldownUntil, threshold, cooldownMs, dailyHaltCount, armCount };
 }
 
+// Skip re-entering a mint that recently dumped on us — a token that already lost more than
+// `reentry_block_loss_pct` within `reentry_block_ms` is usually a rug re-dump, not a fresh setup
+// (re-entry after a *shallow* SL stays +EV, so this only fires on deep losses). Time-bounded, so
+// the token trades again later if it recovers. Disabled unless loss is negative and window positive.
+function checkReentryBlock(strat, mint) {
+  const lossPct = strat.reentry_block_loss_pct ?? numSetting('reentry_block_loss_pct', 0);
+  const windowMs = strat.reentry_block_ms ?? numSetting('reentry_block_ms', 0);
+  if (lossPct >= 0 || windowMs <= 0) return null;
+  return recentLossForMint(mint, lossPct, Date.now() - windowMs) || null;
+}
+
 export const seenSignalCandidates = new Map();
 
 setDegenHandler(maybeProcessDegenCandidate);
@@ -95,6 +106,22 @@ export async function processCandidateFromSignals(signals) {
         cooldownMs: cooldown.cooldownMs,
         dailyHaltCount: cooldown.dailyHaltCount,
         armCountToday: cooldown.armCount,
+      },
+    });
+    return;
+  }
+
+  const reentryBlock = checkReentryBlock(strat, signals.mint);
+  if (reentryBlock) {
+    agentLog.info(`reentry blocked (${strat.id}) ${signals.mint.slice(0, 8)}... — lost ${Number(reentryBlock.pnl_percent).toFixed(1)}% recently, skipping`);
+    logDecisionEvent({
+      decision: { selected_mint: signals.mint },
+      action: 'entry_skipped_reentry_block',
+      strategyId: strat.id,
+      guardrails: {
+        priorLossPct: reentryBlock.pnl_percent,
+        reentryBlockLossPct: strat.reentry_block_loss_pct ?? numSetting('reentry_block_loss_pct', 0),
+        reentryBlockMs: strat.reentry_block_ms ?? numSetting('reentry_block_ms', 0),
       },
     });
     return;
