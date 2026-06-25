@@ -86,6 +86,7 @@ setCandidateHandler(processCandidateFromSignals);
 export async function processCandidateFromSignals(signals) {
   // Skip if max positions reached — don't waste enrichment/LLM calls
   const strat = activeStrategy();
+  const mode = tradingMode();
   if (!canOpenMorePositions()) {
     agentLog.info(`max positions reached (${openPositionCount()}/${strat.max_open_positions}), skipping ${signals.mint.slice(0, 8)}...`);
     return;
@@ -98,6 +99,7 @@ export async function processCandidateFromSignals(signals) {
     agentLog.info(`${dailyHalt ? 'sl daily halt' : 'sl streak cooldown'} active (${strat.id}${cooldown.armed ? ', just armed' : ''}), skipping ${signals.mint.slice(0, 8)}...`);
     logDecisionEvent({
       decision: { selected_mint: signals.mint },
+      mode,
       action,
       strategyId: strat.id,
       guardrails: {
@@ -116,6 +118,7 @@ export async function processCandidateFromSignals(signals) {
     agentLog.info(`reentry blocked (${strat.id}) ${signals.mint.slice(0, 8)}... — lost ${Number(reentryBlock.pnl_percent).toFixed(1)}% recently, skipping`);
     logDecisionEvent({
       decision: { selected_mint: signals.mint },
+      mode,
       action: 'entry_skipped_reentry_block',
       strategyId: strat.id,
       guardrails: {
@@ -193,6 +196,7 @@ export async function processCandidateFromSignals(signals) {
         selectedRow,
         rows,
         decision: batchDecision,
+        mode,
         action: 'entry_skipped_max_positions',
         guardrails: { maxOpenPositions: max, openPositions: openPositionCount() },
       });
@@ -206,6 +210,7 @@ export async function processCandidateFromSignals(signals) {
       selectedRow,
       rows,
       decision: batchDecision,
+      mode,
       action: selectedRow ? 'entry_not_approved' : 'no_candidate_selected',
       guardrails: {
         agentEnabled: boolSetting('agent_enabled', true),
