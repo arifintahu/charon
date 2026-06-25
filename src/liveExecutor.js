@@ -1,6 +1,6 @@
 import axios from 'axios';
 import bs58 from 'bs58';
-import { Connection, Keypair, PublicKey, TransactionInstruction, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
+import { ComputeBudgetProgram, Connection, Keypair, PublicKey, TransactionInstruction, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import {
   JUPITER_API_KEY,
   JUPITER_SLIPPAGE_BPS,
@@ -10,6 +10,7 @@ import {
   SOLANA_RPC_URL,
   SOLANA_RPC_URL_ALT,
   SOLANA_RPC_TIMEOUT_MS,
+  SOLANA_PRIORITY_FEE_MICROLAMPORTS,
 } from './config.js';
 import { logger } from './log.js';
 
@@ -171,7 +172,11 @@ async function sendCloseBatch(instructions) {
   const message = new TransactionMessage({
     payerKey: liveWallet.publicKey,
     recentBlockhash: blockhash,
-    instructions,
+    instructions: [
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 5_000 * instructions.length + 5_000 }),
+      ComputeBudgetProgram.setComputeUnitPrice({ microLamports: SOLANA_PRIORITY_FEE_MICROLAMPORTS }),
+      ...instructions,
+    ],
   }).compileToV0Message();
   const tx = new VersionedTransaction(message);
   tx.sign([liveWallet]);
